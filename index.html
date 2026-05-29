@@ -78,10 +78,10 @@
                 spacing: 'sm',
                 contents: [
                     {
-                        type: 'box', layout: 'horizontal', spacing: 'md',
+                        type: 'box', layout: 'horizontal', spacing: 'lg',
                         contents: [
                             {
-                                type: 'box', layout: 'vertical', spacing: 'xs', flex: 1,
+                                type: 'box', layout: 'vertical', spacing: 'xs', flex: 0,
                                 contents: [
                                     { type: 'text', text: '打卡人', size: 'xs', color: '#999999' },
                                     { type: 'text', text: displayName, size: 'md', weight: 'bold', wrap: true }
@@ -93,7 +93,8 @@
                                     { type: 'text', text: '狀態', size: 'xs', color: '#999999' },
                                     { type: 'text', text: status, size: 'md', weight: 'bold', color: '#000000' }
                                 ]
-                            }
+                            },
+                            { type: 'filler' }
                         ]
                     },
                     {
