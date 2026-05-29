@@ -40,30 +40,19 @@
         if (s) s.innerText = "[Promise reject] " + JSON.stringify(e.reason);
     });
 
-    function tryInitLiff(attempt) {
-        var statusDiv = document.getElementById('status');
-        if (typeof liff !== 'undefined') {
-            statusDiv.innerText = "LIFF SDK 已載入，初始化中...";
-            liff.init({ liffId: '2010233112-czPa88PE' })
-                .then(function() {
-                    statusDiv.innerText = "LINE 元件載入成功，準備就緒。";
-                })
-                .catch(function(err) {
-                    statusDiv.innerText =
-                        "初始化失敗: " + (err && err.message ? err.message : JSON.stringify(err));
-                });
-            return;
-        }
-        if (attempt >= 10) {
-            statusDiv.innerText = "❌ LIFF SDK 載入失敗（重試 10 次都讀不到，請重新整理）";
-            return;
-        }
-        statusDiv.innerText = "等待 LIFF SDK 載入… (" + (attempt + 1) + "/10)";
-        setTimeout(function() { tryInitLiff(attempt + 1); }, 500);
-    }
-
     document.addEventListener("DOMContentLoaded", function() {
-        tryInitLiff(0);
+        if (typeof liff === 'undefined') {
+            document.getElementById('status').innerText = "❌ LIFF SDK 沒載入 (script 失敗)";
+            return;
+        }
+        liff.init({ liffId: '2010233112-czPa88PE' })
+            .then(function() {
+                document.getElementById('status').innerText = "LINE 元件載入成功，準備就緒。";
+            })
+            .catch(function(err) {
+                document.getElementById('status').innerText =
+                    "初始化失敗: " + (err && err.message ? err.message : JSON.stringify(err));
+            });
     });
 
     function buildFlexBubble(profile, status, lat, lng, time) {
