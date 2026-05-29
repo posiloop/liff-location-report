@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 定位回報助手</title>
-    <!-- LINE LIFF SDK (production stable, not edge) -->
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; padding: 40px 20px; background-color: #f9f9fb; color: #333; }
@@ -26,7 +25,6 @@
     </div>
 
 <script>
-    // 捕捉所有未處理錯誤，秀在畫面上
     window.addEventListener('error', function(e) {
         var s = document.getElementById('status');
         if (s) s.innerText = "[JS error] " + e.message + " @ " + (e.filename||'') + ":" + (e.lineno||'');
@@ -51,6 +49,77 @@
             });
     });
 
+    function buildFlexBubble(profile, lat, lng, time, timestamp) {
+        var latStr = lat.toFixed(6);
+        var lngStr = lng.toFixed(6);
+        var mapsUri = 'https://www.google.com/maps?q=' + latStr + ',' + lngStr;
+        var uid = profile && profile.userId ? profile.userId : 'unknown';
+        var displayName = profile && profile.displayName ? profile.displayName : '未取得';
+
+        return {
+            type: 'bubble',
+            size: 'kilo',
+            header: {
+                type: 'box',
+                layout: 'vertical',
+                backgroundColor: '#06C755',
+                paddingAll: 'md',
+                contents: [
+                    { type: 'text', text: '📍 AI 定位打卡', color: '#FFFFFF', weight: 'bold', size: 'lg', align: 'center' },
+                    { type: 'text', text: 'LIFF 系統認證', color: '#FFFFFFCC', size: 'xxs', align: 'center', margin: 'sm' }
+                ]
+            },
+            body: {
+                type: 'box',
+                layout: 'vertical',
+                spacing: 'sm',
+                contents: [
+                    {
+                        type: 'box', layout: 'vertical', spacing: 'xs',
+                        contents: [
+                            { type: 'text', text: '打卡人', size: 'xs', color: '#999999' },
+                            { type: 'text', text: displayName, size: 'md', weight: 'bold', wrap: true }
+                        ]
+                    },
+                    {
+                        type: 'box', layout: 'vertical', spacing: 'xs',
+                        contents: [
+                            { type: 'text', text: '經緯度', size: 'xs', color: '#999999' },
+                            { type: 'text', text: latStr + ', ' + lngStr, size: 'md', weight: 'bold' }
+                        ]
+                    },
+                    {
+                        type: 'box', layout: 'vertical', spacing: 'xs',
+                        contents: [
+                            { type: 'text', text: '時間', size: 'xs', color: '#999999' },
+                            { type: 'text', text: time, size: 'md', weight: 'bold' }
+                        ]
+                    },
+                    { type: 'separator', margin: 'md' },
+                    {
+                        type: 'box', layout: 'vertical', spacing: 'xs', margin: 'md',
+                        contents: [
+                            { type: 'text', text: 'metadata (bot 驗證用)', size: 'xxs', color: '#bbbbbb' },
+                            { type: 'text', text: 'uid:' + uid, size: 'xxs', color: '#bbbbbb', wrap: true },
+                            { type: 'text', text: 'ts:' + timestamp, size: 'xxs', color: '#bbbbbb' },
+                            { type: 'text', text: 'src:LIFF/2010233112', size: 'xxs', color: '#bbbbbb' }
+                        ]
+                    }
+                ]
+            },
+            footer: {
+                type: 'box',
+                layout: 'vertical',
+                contents: [
+                    {
+                        type: 'button', style: 'primary', color: '#06C755', height: 'sm',
+                        action: { type: 'uri', label: '在 Google Maps 看打卡點', uri: mapsUri }
+                    }
+                ]
+            }
+        };
+    }
+
     function getAndShareLocation() {
         var statusDiv = document.getElementById('status');
         statusDiv.innerText = "正在定位中，請稍候...";
@@ -64,22 +133,16 @@
             function(position) {
                 var lat = position.coords.latitude;
                 var lng = position.coords.longitude;
-                var time = new Date(position.timestamp).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+                var ts = position.timestamp;
+                var time = new Date(ts).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
 
-                statusDiv.innerText = "定位成功！正在傳送至 LINE...";
-
-                var reportText =
-                    "【AI 位置回報驗證】\n" +
-                    "📍 經緯度：" + lat + ", " + lng + "\n" +
-                    "⏰ 時間：" + time + "\n\n" +
-                    "(此數據由系統硬體產生，無法手動竄改)";
+                statusDiv.innerText = "定位成功！正在準備 Flex 訊息...";
 
                 if (typeof liff === 'undefined' || !liff.isInClient || !liff.isInClient()) {
-                    statusDiv.innerText = "非 LINE 內開啟，資料如下：\n" + reportText;
+                    statusDiv.innerText = "非 LINE 內開啟，無法送 Flex。座標：" + lat + ", " + lng;
                     return;
                 }
 
-                // 建全 2026-05-29 找到的關鍵：先檢查 chat_message.write 權限
                 try {
                     if (typeof liff.hasPermission === 'function' && !liff.hasPermission('chat_message.write')) {
                         alert("請先同意「傳送訊息至聊天室」的權限，才能正常使用定位回報功能！");
@@ -94,16 +157,24 @@
                     return;
                 }
 
-                liff.sendMessages([{ type: 'text', text: reportText }])
-                    .then(function() {
-                        statusDiv.innerText = "傳送成功，關閉視窗...";
-                        liff.closeWindow();
-                    })
-                    .catch(function(error) {
-                        var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
-                        alert('LINE 傳送失敗，錯誤原因: ' + msg);
-                        statusDiv.innerText = "傳送失敗: " + msg;
-                    });
+                // 取使用者資料（displayName + userId），再組 Flex 並送
+                liff.getProfile().then(function(profile) {
+                    statusDiv.innerText = "正在傳送 Flex 至 LINE...";
+                    var altText = '【AI 定位打卡】' + profile.displayName + ' / ' +
+                                  lat.toFixed(6) + ',' + lng.toFixed(6) + ' / ' + time;
+                    var bubble = buildFlexBubble(profile, lat, lng, time, ts);
+
+                    return liff.sendMessages([
+                        { type: 'flex', altText: altText, contents: bubble }
+                    ]);
+                }).then(function() {
+                    statusDiv.innerText = "傳送成功，關閉視窗...";
+                    liff.closeWindow();
+                }).catch(function(error) {
+                    var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
+                    alert('LINE 傳送失敗，錯誤原因: ' + msg);
+                    statusDiv.innerText = "傳送失敗: " + msg;
+                });
             },
             function(error) {
                 statusDiv.innerText = "定位失敗，請確保手機已開啟定位功能並允許權限。";
