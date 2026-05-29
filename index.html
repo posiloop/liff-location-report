@@ -140,10 +140,8 @@
             function(position) {
                 var lat = position.coords.latitude;
                 var lng = position.coords.longitude;
-                var ts = position.timestamp;
-                var time = new Date(ts).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
 
-                statusDiv.innerText = "定位成功！正在準備 Flex 訊息（" + status + "）...";
+                statusDiv.innerText = "定位成功！同步伺服器時間中...";
 
                 if (typeof liff === 'undefined' || !liff.isInClient || !liff.isInClient()) {
                     statusDiv.innerText = "非 LINE 內開啟，無法送 Flex。座標：" + lat + ", " + lng;
@@ -164,15 +162,36 @@
                     return;
                 }
 
-                liff.getProfile().then(function(profile) {
-                    statusDiv.innerText = "正在傳送 Flex 至 LINE...";
-                    var altText = '【AI 定位打卡】' + profile.displayName + ' / ' + status + ' / ' +
-                                  lat.toFixed(6) + ',' + lng.toFixed(6) + ' / ' + time;
-                    var bubble = buildFlexBubble(profile, status, lat, lng, time);
+                // 抓伺服器時間（worldtimeapi.org）防員工改裝置時間偽造
+                var TIMEOUT_MS = 5000;
+                var serverTimePromise = Promise.race([
+                    fetch('https://worldtimeapi.org/api/timezone/Asia/Taipei')
+                        .then(function(r) { return r.json(); })
+                        .then(function(j) { return { date: new Date(j.datetime), source: 'server' }; }),
+                    new Promise(function(_, rej) {
+                        setTimeout(function() { rej(new Error('timeout')); }, TIMEOUT_MS);
+                    })
+                ]).catch(function(err) {
+                    return { date: new Date(), source: 'device-fallback', err: err.message || String(err) };
+                });
 
-                    return liff.sendMessages([
-                        { type: 'flex', altText: altText, contents: bubble }
-                    ]);
+                serverTimePromise.then(function(timeObj) {
+                    var time = timeObj.date.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+                    var isFallback = timeObj.source !== 'server';
+                    if (isFallback) {
+                        time = time + ' (⚠️裝置時間)';
+                    }
+                    statusDiv.innerText = (isFallback ? "⚠️ 伺服器時間取不到，改用裝置時間" : "已取得伺服器時間")
+                        + "，正在傳送 Flex 至 LINE...";
+
+                    return liff.getProfile().then(function(profile) {
+                        var altText = '【AI 定位打卡】' + profile.displayName + ' / ' + status + ' / ' +
+                                      lat.toFixed(6) + ',' + lng.toFixed(6) + ' / ' + time;
+                        var bubble = buildFlexBubble(profile, status, lat, lng, time);
+                        return liff.sendMessages([
+                            { type: 'flex', altText: altText, contents: bubble }
+                        ]);
+                    });
                 }).then(function() {
                     statusDiv.innerText = "傳送成功，關閉視窗...";
                     liff.closeWindow();
