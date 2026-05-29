@@ -43,11 +43,7 @@
         }
         liff.init({ liffId: '2010233112-czPa88PE' })
             .then(function() {
-                document.getElementById('status').innerText =
-                    "LINE 元件載入成功，準備就緒。\n" +
-                    "isInClient=" + liff.isInClient() +
-                    " / OS=" + liff.getOS() +
-                    " / v=" + liff.getVersion();
+                document.getElementById('status').innerText = "LINE 元件載入成功，準備就緒。";
             })
             .catch(function(err) {
                 document.getElementById('status').innerText =
