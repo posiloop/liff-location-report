@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 定位回報助手</title>
+    <script src="https://static.liff.line.me/edge/2/sdk.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; padding: 40px 20px; background-color: #f9f9fb; color: #333; }
+        .card { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); max-width: 400px; margin: 0 auto; }
+        h2 { margin-bottom: 10px; color: #06C755; }
+        p { font-size: 14px; color: #666; margin-bottom: 25px; }
+        button { width: 100%; padding: 15px; font-size: 16px; background-color: #06C755; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
+        button:active { background-color: #05a647; }
+        #status { margin-top: 20px; font-size: 14px; color: #999; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>📍 AI 定位打卡</h2>
+        <p>點擊下方按鈕，系統將自動獲取您當前的真實 GPS 座標與時間，並傳送至對話框中。</p>
+        <button id="btn-share" onclick="getAndShareLocation()">一鍵安全回報</button>
+        <div id="status">正在初始化 LINE LIFF...</div>
+    </div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        liff.init({ liffId: '2010233112-czPa88PE' })
+            .then(() => {
+                document.getElementById('status').innerText = "LINE 元件載入成功，準備就緒。";
+            })
+            .catch((err) => {
+                document.getElementById('status').innerText = "初始化失敗: " + err.message;
+            });
+    });
+
+    function getAndShareLocation() {
+        const statusDiv = document.getElementById('status');
+        statusDiv.innerText = "正在定位中，請稍候...";
+
+        if (!navigator.geolocation) {
+            alert("您的裝置不支援 GPS 定位。");
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                const time = new Date(position.timestamp).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+
+                statusDiv.innerText = "定位成功！正在傳送至 LINE...";
+
+                const reportText = `【AI 位置回報驗證】\n📍 經緯度：${lat}, ${lng}\n⏰ 時間：${time}\n\n(此數據由系統硬體產生，無法手動竄改)`;
+
+                if (liff.isInClient()) {
+                    liff.sendMessages([{
+                        'type': 'text',
+                        'text': reportText
+                    }]).then(function() {
+                        liff.closeWindow();
+                    }).catch(function(error) {
+                        alert('LINE API 報錯原因: ' + JSON.stringify(error));
+                    });
+                } else {
+                    statusDiv.innerText = "非 LINE 內開啟，資料如下：\n" + reportText;
+                }
+            },
+            function(error) {
+                statusDiv.innerText = "定位失敗，請確保手機已開啟定位功能並允許權限。";
+                alert("錯誤代碼: " + error.code + " - " + error.message);
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    }
+</script>
+
+</body>
+</html>
