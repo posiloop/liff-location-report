@@ -12,159 +12,77 @@
         p { font-size: 14px; color: #666; margin-bottom: 25px; }
         button { width: 100%; padding: 15px; font-size: 16px; background-color: #06C755; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
         button:active { background-color: #05a647; }
-        button:disabled { background-color: #ccc; cursor: not-allowed; }
-        #status { margin-top: 20px; font-size: 13px; color: #444; white-space: pre-wrap; text-align: left; background: #f1f3f5; padding: 10px; border-radius: 8px; min-height: 60px; }
-        #context { margin-top: 8px; font-size: 11px; color: #888; text-align: left; }
+        #status { margin-top: 20px; font-size: 14px; color: #999; white-space: pre-wrap; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h2>📍 AI 定位打卡 (Debug)</h2>
-        <p>點擊按鈕取得 GPS 並嘗試傳送回 LINE 聊天室。下方會顯示每一步診斷訊息。</p>
-        <button id="btn-share" onclick="getAndShareLocation()" disabled>初始化中...</button>
-        <div id="status">[初始化中...]</div>
-        <div id="context"></div>
+        <h2>📍 AI 定位打卡</h2>
+        <p>點擊下方按鈕，系統將自動獲取您當前的真實 GPS 座標與時間，並傳送至對話框中。</p>
+        <button id="btn-share" onclick="getAndShareLocation()">一鍵安全回報</button>
+        <div id="status">正在初始化 LINE LIFF...</div>
     </div>
 
 <script>
-const LIFF_ID = '2010233112-czPa88PE';
+    document.addEventListener("DOMContentLoaded", function() {
+        liff.init({ liffId: '2010233112-czPa88PE' })
+            .then(() => {
+                document.getElementById('status').innerText = "LINE 元件載入成功，準備就緒。";
+            })
+            .catch((err) => {
+                document.getElementById('status').innerText = "初始化失敗: " + err.message;
+            });
+    });
 
-function log(line) {
-    const s = document.getElementById('status');
-    const t = new Date().toLocaleTimeString('zh-TW', { hour12: false });
-    s.innerText += `[${t}] ${line}\n`;
-    console.log(line);
-}
-function setBtn(label, enabled) {
-    const b = document.getElementById('btn-share');
-    b.innerText = label;
-    b.disabled = !enabled;
-}
+    function getAndShareLocation() {
+        const statusDiv = document.getElementById('status');
+        statusDiv.innerText = "正在定位中，請稍候...";
 
-document.addEventListener("DOMContentLoaded", function() {
-    document.getElementById('status').innerText = "";
-    log('LIFF init 開始 (liffId=' + LIFF_ID + ')');
-    liff.init({ liffId: LIFF_ID })
-        .then(() => {
-            log('LIFF init 成功');
-            const ctx = liff.getContext();
-            const ctxInfo = {
-                type: ctx ? ctx.type : 'null',
-                viewType: ctx ? ctx.viewType : '',
-                userId: ctx && ctx.userId ? ctx.userId.slice(0, 8) + '...' : 'n/a'
-            };
-            log('Context: ' + JSON.stringify(ctxInfo));
-            log('isInClient: ' + liff.isInClient());
-            log('isLoggedIn: ' + liff.isLoggedIn());
-            log('OS: ' + liff.getOS() + ', LIFF v' + liff.getVersion());
+        if (!navigator.geolocation) {
+            alert("您的裝置不支援 GPS 定位。");
+            return;
+        }
 
-            document.getElementById('context').innerText =
-                `Context type: ${ctxInfo.type} (utou/group/room/external/none)\n` +
-                `若 type=external 或 none → sendMessages 無法用，要從聊天室開 LIFF`;
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                const time = new Date(position.timestamp).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
 
-            // 檢查 scope 是否真的有 chat_message.write
-            if (liff.permission && liff.permission.query) {
-                Promise.all([
-                    liff.permission.query('chat_message.write'),
-                    liff.permission.query('profile')
-                ]).then(([cm, pf]) => {
-                    log('Permission chat_message.write: ' + JSON.stringify(cm));
-                    log('Permission profile: ' + JSON.stringify(pf));
-                }).catch(e => log('Permission.query fail: ' + JSON.stringify(e)));
-            }
+                statusDiv.innerText = "定位成功！正在傳送至 LINE...";
 
-            setBtn('一鍵安全回報', true);
-        })
-        .catch((err) => {
-            log('LIFF init 失敗: ' + JSON.stringify(err));
-            setBtn('初始化失敗', false);
-        });
-});
+                const reportText = `【AI 位置回報驗證】\n📍 經緯度：${lat}, ${lng}\n⏰ 時間：${time}\n\n(此數據由系統硬體產生，無法手動竄改)`;
 
-function getAndShareLocation() {
-    setBtn('進行中...', false);
-    log('--- 開始定位 ---');
-
-    if (!navigator.geolocation) {
-        log('裝置不支援 GPS');
-        setBtn('一鍵安全回報', true);
-        return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-        function(position) {
-            const lat = position.coords.latitude.toFixed(6);
-            const lng = position.coords.longitude.toFixed(6);
-            const time = new Date(position.timestamp).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
-            log('定位成功: ' + lat + ', ' + lng);
-
-            const reportText = `【AI 位置回報驗證】\n📍 經緯度：${lat}, ${lng}\n⏰ 時間：${time}\n\n(此數據由系統硬體產生，無法手動竄改)`;
-
-            if (!liff.isInClient()) {
-                log('非 LINE in-client 環境，跳過 sendMessages');
-                log('資料: ' + reportText);
-                setBtn('一鍵安全回報', true);
-                return;
-            }
-
-            const ctx = liff.getContext();
-            if (ctx && (ctx.type === 'external' || ctx.type === 'none')) {
-                log('⚠ Context.type=' + ctx.type + '，sendMessages 不支援此情境');
-                log('解法：把 LIFF 連結貼到聊天室，從聊天室點開 LIFF（utou/group/room 才支援）');
-                setBtn('一鍵安全回報', true);
-                return;
-            }
-
-            // 建全 2026-05-29 找到的關鍵：sendMessages 前要先檢查 chat_message.write 權限
-            const hasPerm = liff.hasPermission ? liff.hasPermission('chat_message.write') : true;
-            log('liff.hasPermission(chat_message.write) = ' + hasPerm);
-
-            if (!hasPerm) {
-                log('⚠ 使用者尚未授權 chat_message.write — 嘗試請求授權');
-                alert('請先同意「傳送訊息至聊天室」的權限，才能正常使用定位回報功能！');
-                if (typeof liff.requestDevicePermission === 'function') {
-                    try {
+                if (liff.isInClient()) {
+                    // 建全 2026-05-29 找到的關鍵：先檢查 chat_message.write 權限
+                    if (!liff.hasPermission('chat_message.write')) {
+                        alert("請先同意「傳送訊息至聊天室」的權限，才能正常使用定位回報功能！");
                         liff.requestDevicePermission('chat_message.write');
-                        log('已呼叫 liff.requestDevicePermission，等待使用者授權後重試');
-                        setBtn('再試一次', true);
+                        statusDiv.innerText = "等待權限授權中...";
                         return;
-                    } catch (e) {
-                        log('requestDevicePermission fail: ' + JSON.stringify(e, Object.getOwnPropertyNames(e)));
                     }
+
+                    liff.sendMessages([{
+                        'type': 'text',
+                        'text': reportText
+                    }]).then(function() {
+                        liff.closeWindow();
+                    }).catch(function(error) {
+                        alert('LINE 傳送失敗，錯誤原因: ' + JSON.stringify(error));
+                        statusDiv.innerText = "傳送失敗。";
+                    });
+                } else {
+                    statusDiv.innerText = "非 LINE 內開啟，資料如下：\n" + reportText;
                 }
-                // Fallback：用 logout + login 強制重新詢問授權
-                log('Fallback：liff.logout() 然後 liff.login() 重新登入取得授權');
-                liff.logout();
-                liff.login({ redirectUri: window.location.href });
-                return;
-            }
-
-            log('呼叫 liff.sendMessages...');
-
-            // 加 10 秒 timeout，避免 hang 住沒回應
-            const sendPromise = liff.sendMessages([{ 'type': 'text', 'text': reportText }]);
-            const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej({ name: 'TIMEOUT', message: '10s 內 sendMessages 沒回應' }), 10000));
-
-            Promise.race([sendPromise, timeoutPromise])
-                .then(() => {
-                    log('sendMessages 成功，準備關閉 LIFF');
-                    setTimeout(() => liff.closeWindow(), 800);
-                })
-                .catch(error => {
-                    log('sendMessages 失敗:');
-                    log(JSON.stringify(error, Object.getOwnPropertyNames(error)));
-                    alert('LINE API 報錯原因: ' + JSON.stringify(error, Object.getOwnPropertyNames(error)));
-                    setBtn('再試一次', true);
-                });
-        },
-        function(error) {
-            log('定位失敗 code=' + error.code + ' msg=' + error.message);
-            setBtn('一鍵安全回報', true);
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-    );
-}
+            },
+            function(error) {
+                statusDiv.innerText = "定位失敗，請確保手機已開啟定位功能並允許權限。";
+                alert("錯誤代碼: " + error.code + " - " + error.message);
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    }
 </script>
 
 </body>
