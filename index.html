@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 定位回報助手</title>
-    <script src="https://static.liff.line.me/edge/2/sdk.js"></script>
+    <!-- LINE LIFF SDK (production stable, not edge) -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; padding: 40px 20px; background-color: #f9f9fb; color: #333; }
         .card { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); max-width: 400px; margin: 0 auto; }
@@ -25,18 +26,37 @@
     </div>
 
 <script>
+    // 捕捉所有未處理錯誤，秀在畫面上
+    window.addEventListener('error', function(e) {
+        var s = document.getElementById('status');
+        if (s) s.innerText = "[JS error] " + e.message + " @ " + (e.filename||'') + ":" + (e.lineno||'');
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+        var s = document.getElementById('status');
+        if (s) s.innerText = "[Promise reject] " + JSON.stringify(e.reason);
+    });
+
     document.addEventListener("DOMContentLoaded", function() {
+        if (typeof liff === 'undefined') {
+            document.getElementById('status').innerText = "❌ LIFF SDK 沒載入 (script 失敗)";
+            return;
+        }
         liff.init({ liffId: '2010233112-czPa88PE' })
-            .then(() => {
-                document.getElementById('status').innerText = "LINE 元件載入成功，準備就緒。";
+            .then(function() {
+                document.getElementById('status').innerText =
+                    "LINE 元件載入成功，準備就緒。\n" +
+                    "isInClient=" + liff.isInClient() +
+                    " / OS=" + liff.getOS() +
+                    " / v=" + liff.getVersion();
             })
-            .catch((err) => {
-                document.getElementById('status').innerText = "初始化失敗: " + err.message;
+            .catch(function(err) {
+                document.getElementById('status').innerText =
+                    "初始化失敗: " + (err && err.message ? err.message : JSON.stringify(err));
             });
     });
 
     function getAndShareLocation() {
-        const statusDiv = document.getElementById('status');
+        var statusDiv = document.getElementById('status');
         statusDiv.innerText = "正在定位中，請稍候...";
 
         if (!navigator.geolocation) {
@@ -46,35 +66,48 @@
 
         navigator.geolocation.getCurrentPosition(
             function(position) {
-                const lat = position.coords.latitude;
-                const lng = position.coords.longitude;
-                const time = new Date(position.timestamp).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+                var lat = position.coords.latitude;
+                var lng = position.coords.longitude;
+                var time = new Date(position.timestamp).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
 
                 statusDiv.innerText = "定位成功！正在傳送至 LINE...";
 
-                const reportText = `【AI 位置回報驗證】\n📍 經緯度：${lat}, ${lng}\n⏰ 時間：${time}\n\n(此數據由系統硬體產生，無法手動竄改)`;
+                var reportText =
+                    "【AI 位置回報驗證】\n" +
+                    "📍 經緯度：" + lat + ", " + lng + "\n" +
+                    "⏰ 時間：" + time + "\n\n" +
+                    "(此數據由系統硬體產生，無法手動竄改)";
 
-                if (liff.isInClient()) {
-                    // 建全 2026-05-29 找到的關鍵：先檢查 chat_message.write 權限
-                    if (!liff.hasPermission('chat_message.write')) {
+                if (typeof liff === 'undefined' || !liff.isInClient || !liff.isInClient()) {
+                    statusDiv.innerText = "非 LINE 內開啟，資料如下：\n" + reportText;
+                    return;
+                }
+
+                // 建全 2026-05-29 找到的關鍵：先檢查 chat_message.write 權限
+                try {
+                    if (typeof liff.hasPermission === 'function' && !liff.hasPermission('chat_message.write')) {
                         alert("請先同意「傳送訊息至聊天室」的權限，才能正常使用定位回報功能！");
-                        liff.requestDevicePermission('chat_message.write');
+                        if (typeof liff.requestDevicePermission === 'function') {
+                            liff.requestDevicePermission('chat_message.write');
+                        }
                         statusDiv.innerText = "等待權限授權中...";
                         return;
                     }
-
-                    liff.sendMessages([{
-                        'type': 'text',
-                        'text': reportText
-                    }]).then(function() {
-                        liff.closeWindow();
-                    }).catch(function(error) {
-                        alert('LINE 傳送失敗，錯誤原因: ' + JSON.stringify(error));
-                        statusDiv.innerText = "傳送失敗。";
-                    });
-                } else {
-                    statusDiv.innerText = "非 LINE 內開啟，資料如下：\n" + reportText;
+                } catch (permErr) {
+                    statusDiv.innerText = "權限檢查錯誤: " + JSON.stringify(permErr);
+                    return;
                 }
+
+                liff.sendMessages([{ type: 'text', text: reportText }])
+                    .then(function() {
+                        statusDiv.innerText = "傳送成功，關閉視窗...";
+                        liff.closeWindow();
+                    })
+                    .catch(function(error) {
+                        var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
+                        alert('LINE 傳送失敗，錯誤原因: ' + msg);
+                        statusDiv.innerText = "傳送失敗: " + msg;
+                    });
             },
             function(error) {
                 statusDiv.innerText = "定位失敗，請確保手機已開啟定位功能並允許權限。";
