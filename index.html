@@ -116,6 +116,30 @@ function getAndShareLocation() {
                 return;
             }
 
+            // 建全 2026-05-29 找到的關鍵：sendMessages 前要先檢查 chat_message.write 權限
+            const hasPerm = liff.hasPermission ? liff.hasPermission('chat_message.write') : true;
+            log('liff.hasPermission(chat_message.write) = ' + hasPerm);
+
+            if (!hasPerm) {
+                log('⚠ 使用者尚未授權 chat_message.write — 嘗試請求授權');
+                alert('請先同意「傳送訊息至聊天室」的權限，才能正常使用定位回報功能！');
+                if (typeof liff.requestDevicePermission === 'function') {
+                    try {
+                        liff.requestDevicePermission('chat_message.write');
+                        log('已呼叫 liff.requestDevicePermission，等待使用者授權後重試');
+                        setBtn('再試一次', true);
+                        return;
+                    } catch (e) {
+                        log('requestDevicePermission fail: ' + JSON.stringify(e, Object.getOwnPropertyNames(e)));
+                    }
+                }
+                // Fallback：用 logout + login 強制重新詢問授權
+                log('Fallback：liff.logout() 然後 liff.login() 重新登入取得授權');
+                liff.logout();
+                liff.login({ redirectUri: window.location.href });
+                return;
+            }
+
             log('呼叫 liff.sendMessages...');
 
             // 加 10 秒 timeout，避免 hang 住沒回應
