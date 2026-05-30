@@ -14,12 +14,32 @@
         .btn-row { display: flex; gap: 12px; }
         button { flex: 1; padding: 15px; font-size: 16px; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; transition: background 0.2s; background-color: #06C755; }
         button:active { background-color: #05a647; }
+        .makeup-btn { width: 100%; margin-top: 12px; background-color: #888888; }
+        .makeup-btn:active { background-color: #6e6e6e; }
         #status { margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap; }
+
+        /* --- 補卡頁面樣式 --- */
+        .hidden { display: none; }
+        .form-header { display: flex; align-items: center; margin: 0 0 16px 0; position: relative; min-height: 32px; }
+        .back-btn { position: absolute; left: 0; background: transparent; color: #06C755; border: none; padding: 0; font-size: 24px; cursor: pointer; width: auto; flex: none; font-weight: normal; box-shadow: none; }
+        .back-btn:active { background: transparent; color: #05a647; }
+        .form-title { margin: 0 auto; color: #d62828; font-weight: 700; font-size: 20px; }
+        .field { text-align: left; margin: 0 0 14px 0; }
+        .field-label { display: block; font-size: 13px; color: #666; margin: 0 0 6px 2px; font-weight: 500; }
+        .field input, .field textarea { width: 100%; box-sizing: border-box; padding: 12px; font-size: 16px; border: 1.5px solid #ddd; border-radius: 10px; background: white; font-family: inherit; }
+        .field input:focus, .field textarea:focus { outline: none; border-color: #06C755; }
+        .field textarea { resize: vertical; min-height: 64px; }
+        .status-toggle { display: flex; gap: 10px; }
+        .status-toggle button { background-color: #f0f0f0; color: #333; border: 1.5px solid #ddd; }
+        .status-toggle button.selected { background-color: #06C755; color: white; border-color: #06C755; }
+        .submit-btn { background-color: #d62828; margin-top: 4px; }
+        .submit-btn:active { background-color: #b51d1d; }
     </style>
 </head>
 <body>
 
-    <div class="card">
+    <!-- === Main View (上下班 + 補卡 按鈕) === -->
+    <div id="main-view" class="card">
         <h2>📍 AI 定位打卡</h2>
         <p>點擊下方按鈕，系統將自動獲取您當前的真實 GPS 座標與時間，並傳送至對話框中。</p>
         <p style="color: #d62828; font-weight: bold; margin: 0 0 14px 0;">※ 點擊後即傳送定位資訊，無法收回!!! ※</p>
@@ -27,7 +47,42 @@
             <button onclick="getAndShareLocation('上班')">上班</button>
             <button onclick="getAndShareLocation('下班')">下班</button>
         </div>
+        <button class="makeup-btn" onclick="showCheckinForm()">補卡</button>
         <div id="status">正在初始化 LINE LIFF...</div>
+    </div>
+
+    <!-- === Makeup Check-in Form View === -->
+    <div id="checkin-form-view" class="card hidden">
+        <div class="form-header">
+            <button class="back-btn" onclick="hideCheckinForm()" aria-label="返回">←</button>
+            <div class="form-title">員工補卡</div>
+        </div>
+
+        <div class="field">
+            <label class="field-label">狀態</label>
+            <div class="btn-row status-toggle">
+                <button type="button" id="makeup-status-in" onclick="selectMakeupStatus('上班')">上班</button>
+                <button type="button" id="makeup-status-out" onclick="selectMakeupStatus('下班')">下班</button>
+            </div>
+        </div>
+
+        <div class="field">
+            <label class="field-label" for="makeup-date">日期</label>
+            <input type="date" id="makeup-date">
+        </div>
+
+        <div class="field">
+            <label class="field-label" for="makeup-time">時間</label>
+            <input type="time" id="makeup-time">
+        </div>
+
+        <div class="field">
+            <label class="field-label" for="makeup-reason">原因</label>
+            <textarea id="makeup-reason" placeholder="例：忘記打卡、機器故障、外出無訊號…"></textarea>
+        </div>
+
+        <button class="submit-btn" onclick="submitMakeupCheckin()">確認補卡</button>
+        <div id="makeup-status" style="margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap;"></div>
     </div>
 
 <script>
@@ -55,6 +110,7 @@
             });
     });
 
+    // ===== Flex (定位打卡) =====
     function buildFlexBubble(profile, status, lat, lng, time) {
         var latStr = lat.toFixed(6);
         var lngStr = lng.toFixed(6);
@@ -65,19 +121,14 @@
             type: 'bubble',
             size: 'kilo',
             header: {
-                type: 'box',
-                layout: 'vertical',
-                backgroundColor: '#06C755',
-                paddingAll: 'md',
+                type: 'box', layout: 'vertical', backgroundColor: '#06C755', paddingAll: 'md',
                 contents: [
                     { type: 'text', text: '📍 AI 定位打卡', color: '#FFFFFF', weight: 'bold', size: 'lg', align: 'center' },
                     { type: 'text', text: 'LIFF 系統認證', color: '#FFFFFFCC', size: 'xxs', align: 'center', margin: 'sm' }
                 ]
             },
             body: {
-                type: 'box',
-                layout: 'vertical',
-                spacing: 'sm',
+                type: 'box', layout: 'vertical', spacing: 'sm',
                 contents: [
                     {
                         type: 'box', layout: 'horizontal', spacing: 'xxl',
@@ -116,8 +167,7 @@
                 ]
             },
             footer: {
-                type: 'box',
-                layout: 'vertical',
+                type: 'box', layout: 'vertical',
                 contents: [
                     {
                         type: 'button', style: 'primary', color: '#06C755', height: 'sm',
@@ -128,6 +178,63 @@
         };
     }
 
+    // ===== Flex (補卡 紅色版本) =====
+    function buildMakeupFlexBubble(profile, status, dateTimeText, reason) {
+        var displayName = profile && profile.displayName ? profile.displayName : '未取得';
+
+        return {
+            type: 'bubble',
+            size: 'kilo',
+            header: {
+                type: 'box', layout: 'vertical', backgroundColor: '#d62828', paddingAll: 'md',
+                contents: [
+                    { type: 'text', text: '📝 員工補卡紀錄', color: '#FFFFFF', weight: 'bold', size: 'lg', align: 'center' },
+                    { type: 'text', text: 'LIFF 系統認證', color: '#FFFFFFCC', size: 'xxs', align: 'center', margin: 'sm' }
+                ]
+            },
+            body: {
+                type: 'box', layout: 'vertical', spacing: 'sm',
+                contents: [
+                    {
+                        type: 'box', layout: 'horizontal', spacing: 'xxl',
+                        contents: [
+                            {
+                                type: 'box', layout: 'vertical', spacing: 'xs', flex: 0,
+                                contents: [
+                                    { type: 'text', text: '打卡人', size: 'xs', color: '#999999' },
+                                    { type: 'text', text: displayName, size: 'md', weight: 'bold', wrap: true }
+                                ]
+                            },
+                            {
+                                type: 'box', layout: 'vertical', spacing: 'xs', flex: 0, paddingStart: '24px',
+                                contents: [
+                                    { type: 'text', text: '狀態', size: 'xs', color: '#999999' },
+                                    { type: 'text', text: status, size: 'md', weight: 'bold', color: '#000000' }
+                                ]
+                            },
+                            { type: 'filler' }
+                        ]
+                    },
+                    {
+                        type: 'box', layout: 'vertical', spacing: 'xs',
+                        contents: [
+                            { type: 'text', text: '時間', size: 'xs', color: '#999999' },
+                            { type: 'text', text: dateTimeText, size: 'md', weight: 'bold' }
+                        ]
+                    },
+                    {
+                        type: 'box', layout: 'vertical', spacing: 'xs',
+                        contents: [
+                            { type: 'text', text: '原因', size: 'xs', color: '#999999' },
+                            { type: 'text', text: reason, size: 'md', weight: 'bold', wrap: true }
+                        ]
+                    }
+                ]
+            }
+        };
+    }
+
+    // ===== 定位打卡（既有） =====
     function getAndShareLocation(status) {
         var statusDiv = document.getElementById('status');
         statusDiv.innerText = "正在定位中（" + status + "），請稍候...";
@@ -188,6 +295,104 @@
             },
             { enableHighAccuracy: true, timeout: 10000 }
         );
+    }
+
+    // ===== 補卡 view 切換 + 表單 =====
+    var makeupStatus = null;  // '上班' or '下班'
+
+    function showCheckinForm() {
+        // reset form
+        makeupStatus = null;
+        document.getElementById('makeup-status-in').classList.remove('selected');
+        document.getElementById('makeup-status-out').classList.remove('selected');
+        document.getElementById('makeup-date').value = '';
+        document.getElementById('makeup-time').value = '';
+        document.getElementById('makeup-reason').value = '';
+        document.getElementById('makeup-status').innerText = '';
+        // switch view
+        document.getElementById('main-view').classList.add('hidden');
+        document.getElementById('checkin-form-view').classList.remove('hidden');
+    }
+
+    function hideCheckinForm() {
+        document.getElementById('checkin-form-view').classList.add('hidden');
+        document.getElementById('main-view').classList.remove('hidden');
+    }
+
+    function selectMakeupStatus(s) {
+        makeupStatus = s;
+        var inBtn = document.getElementById('makeup-status-in');
+        var outBtn = document.getElementById('makeup-status-out');
+        if (s === '上班') {
+            inBtn.classList.add('selected');
+            outBtn.classList.remove('selected');
+        } else {
+            outBtn.classList.add('selected');
+            inBtn.classList.remove('selected');
+        }
+    }
+
+    function submitMakeupCheckin() {
+        var dateVal = document.getElementById('makeup-date').value;
+        var timeVal = document.getElementById('makeup-time').value;
+        var reasonVal = document.getElementById('makeup-reason').value.trim();
+        var statusDiv = document.getElementById('makeup-status');
+
+        // 驗證 4 個欄位
+        var missing = [];
+        if (!makeupStatus) missing.push('狀態');
+        if (!dateVal) missing.push('日期');
+        if (!timeVal) missing.push('時間');
+        if (!reasonVal) missing.push('原因');
+
+        if (missing.length > 0) {
+            alert('資訊尚未填寫完成，請補上：\n・' + missing.join('\n・'));
+            statusDiv.innerText = '尚未填完：' + missing.join('、');
+            return;
+        }
+
+        if (typeof liff === 'undefined' || !liff.isInClient || !liff.isInClient()) {
+            statusDiv.innerText = '非 LINE 內開啟，無法送 Flex。';
+            alert('請從 LINE 開啟此 LIFF 使用補卡功能');
+            return;
+        }
+
+        try {
+            if (typeof liff.hasPermission === 'function' && !liff.hasPermission('chat_message.write')) {
+                alert("請先同意「傳送訊息至聊天室」的權限，才能正常使用補卡功能！");
+                if (typeof liff.requestDevicePermission === 'function') {
+                    liff.requestDevicePermission('chat_message.write');
+                }
+                statusDiv.innerText = "等待權限授權中...";
+                return;
+            }
+        } catch (permErr) {
+            statusDiv.innerText = "權限檢查錯誤: " + JSON.stringify(permErr);
+            return;
+        }
+
+        // dateVal = 'YYYY-MM-DD'，timeVal = 'HH:MM'
+        // 組成顯示文字（跟定位打卡格式一致）
+        var dateObj = new Date(dateVal + 'T' + timeVal + ':00+08:00');
+        var dateTimeText = dateObj.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+
+        statusDiv.innerText = "正在傳送補卡 Flex 至 LINE...";
+
+        liff.getProfile().then(function(profile) {
+            var altText = '【員工補卡紀錄】' + profile.displayName + ' / ' + makeupStatus +
+                          ' / ' + dateTimeText + ' / 原因：' + reasonVal;
+            var bubble = buildMakeupFlexBubble(profile, makeupStatus, dateTimeText, reasonVal);
+            return liff.sendMessages([
+                { type: 'flex', altText: altText, contents: bubble }
+            ]);
+        }).then(function() {
+            statusDiv.innerText = "補卡傳送成功，關閉視窗...";
+            liff.closeWindow();
+        }).catch(function(error) {
+            var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
+            alert('LINE 傳送失敗，錯誤原因: ' + msg);
+            statusDiv.innerText = "傳送失敗: " + msg;
+        });
     }
 </script>
 
