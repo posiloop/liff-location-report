@@ -14,8 +14,8 @@
         .btn-row { display: flex; gap: 12px; }
         button { flex: 1; padding: 15px; font-size: 16px; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; transition: background 0.2s; background-color: #06C755; }
         button:active { background-color: #05a647; }
-        .makeup-btn { width: 100%; margin-top: 12px; background-color: #d62828; }
-        .makeup-btn:active { background-color: #b51d1d; }
+        .makeup-btn { display: block; width: calc(50% - 6px); margin: 12px auto 0; background-color: #2563eb; }
+        .makeup-btn:active { background-color: #1d4ed8; }
         #status { margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap; }
 
         /* --- 補卡頁面樣式 --- */
@@ -41,7 +41,7 @@
     <!-- === Main View (上下班 + 補卡 按鈕) === -->
     <div id="main-view" class="card">
         <h2>📍 AI 定位打卡</h2>
-        <p>點擊下方按鈕，系統將自動獲取您當前的真實 GPS 座標與時間，並傳送至對話框中。</p>
+        <p style="margin: 0 0 4px 0;">點擊下方按鈕，系統將自動獲取您當前的真實 GPS 座標與時間，並傳送至對話框中。</p>
         <p style="color: #d62828; font-weight: bold; margin: 0 0 14px 0;">※ 點擊後即傳送定位資訊，無法收回!!! ※</p>
         <div class="btn-row">
             <button onclick="getAndShareLocation('上班')">上班</button>
