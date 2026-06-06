@@ -86,9 +86,8 @@
     </div>
 
 <script>
-    // Apps Script webhook for 打卡紀錄 sheet (建全 2026-06-06 設置)
-    // 空字串 = 不寫 sheet (只送 LINE)
-    var PUNCH_WEBHOOK_URL = '';   // ← 部署完 Apps Script 後貼這裡
+    // Apps Script webhook for 員工LINE打卡紀錄 sheet (建全 2026-06-06 部署)
+    var PUNCH_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbyds_P9WkA-pK9qmz_e-JVLG_-NPDVNfULs1967cYa4ulQfimxzEy8da-2tpBIFupwX/exec';
 
     function rocFromDate(d){
         var y = d.getFullYear() - 1911;
