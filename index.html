@@ -281,8 +281,8 @@
                         { type: 'flex', altText: altText, contents: bubble }
                     ]);
                 }).then(function() {
-                    statusDiv.innerText = "傳送成功，關閉視窗...";
-                    liff.closeWindow();
+                    statusDiv.innerText = "傳送成功";
+                    showSuccessScreen();
                 }).catch(function(error) {
                     var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
                     alert('LINE 傳送失敗，錯誤原因: ' + msg);
@@ -386,12 +386,36 @@
                 { type: 'flex', altText: altText, contents: bubble }
             ]);
         }).then(function() {
-            statusDiv.innerText = "補卡傳送成功，關閉視窗...";
-            liff.closeWindow();
+            statusDiv.innerText = "補卡傳送成功";
+            showSuccessScreen();
         }).catch(function(error) {
             var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
             alert('LINE 傳送失敗，錯誤原因: ' + msg);
             statusDiv.innerText = "傳送失敗: " + msg;
+        });
+    }
+
+    // ===== 送出後成功彈窗 (跟 業績回報 LIFF 同一套, 按鈕用 LINE 綠 #06C755) =====
+    function showSuccessScreen(){
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:flex;align-items:center;justify-content:center;padding:24px;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif';
+        overlay.innerHTML =
+            '<div style="background:#fff;border-radius:18px;padding:28px 24px;text-align:center;max-width:340px;width:100%;box-shadow:0 12px 48px rgba(0,0,0,.3)">' +
+                '<div style="font-size:56px;line-height:1;margin-bottom:14px">✅</div>' +
+                '<div style="font-size:18px;font-weight:700;color:#06C755;margin-bottom:6px">已成功送出</div>' +
+                '<div style="color:#666;font-size:13px;margin-bottom:20px;line-height:1.6">' +
+                    '訊息已送到聊天室<br>' +
+                    '<strong>提示：</strong>返回 LINE 後若看不到新訊息，<br>' +
+                    '手動往下拉到底就能看到' +
+                '</div>' +
+                '<button type="button" id="closeSuccessBtn" ' +
+                    'style="width:100%;padding:14px;background:#06C755;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(6,199,85,.25)">' +
+                    '返回 LINE 聊天室' +
+                '</button>' +
+            '</div>';
+        document.body.appendChild(overlay);
+        overlay.querySelector('#closeSuccessBtn').addEventListener('click', function(){
+            try{ liff.closeWindow(); } catch(e){}
         });
     }
 </script>
