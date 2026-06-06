@@ -86,6 +86,29 @@
     </div>
 
 <script>
+    // Apps Script webhook for 打卡紀錄 sheet (建全 2026-06-06 設置)
+    // 空字串 = 不寫 sheet (只送 LINE)
+    var PUNCH_WEBHOOK_URL = '';   // ← 部署完 Apps Script 後貼這裡
+
+    function rocFromDate(d){
+        var y = d.getFullYear() - 1911;
+        var m = String(d.getMonth()+1).padStart(2,'0');
+        var dd = String(d.getDate()).padStart(2,'0');
+        var w = ['日','一','二','三','四','五','六'][d.getDay()];
+        return { roc: y+'.'+m+'.'+dd+' ('+w+')', ym: y+'_'+m, iso: d.getFullYear()+'-'+m+'-'+dd };
+    }
+
+    function sendToSheet(payload){
+        if (!PUNCH_WEBHOOK_URL) return;
+        try{
+            fetch(PUNCH_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(payload)
+            }).catch(function(e){ console.warn('sheet write failed:', e); });
+        } catch(e){ console.warn('sheet write threw:', e); }
+    }
+
     window.addEventListener('error', function(e) {
         var s = document.getElementById('status');
         if (s) s.innerText = "[JS error] " + e.message + " @ " + (e.filename||'') + ":" + (e.lineno||'');
@@ -277,6 +300,20 @@
                     var altText = '【AI 定位打卡】' + profile.displayName + ' / ' + status + ' / ' +
                                   lat.toFixed(6) + ',' + lng.toFixed(6) + ' / ' + time;
                     var bubble = buildFlexBubble(profile, status, lat, lng, time);
+                    // 同時：背景送一份進 Sheet (失敗不擋打卡)
+                    var now = new Date();
+                    sendToSheet({
+                        action: 'submit',
+                        date: rocFromDate(now).roc,
+                        ym: rocFromDate(now).ym,
+                        displayName: profile.displayName,
+                        userId: profile.userId || '',
+                        kind: status,
+                        actionDate: rocFromDate(now).roc,
+                        actionTime: time,
+                        lat: lat, lng: lng,
+                        makeup: false
+                    });
                     return liff.sendMessages([
                         { type: 'flex', altText: altText, contents: bubble }
                     ]);
@@ -382,6 +419,19 @@
             var altText = '【員工補卡紀錄】' + profile.displayName + ' / ' + makeupStatus +
                           ' / ' + dateTimeText + ' / 原因：' + reasonVal;
             var bubble = buildMakeupFlexBubble(profile, makeupStatus, dateTimeText, reasonVal);
+            // 同時：背景送一份進 Sheet
+            sendToSheet({
+                action: 'submit',
+                date: rocFromDate(new Date()).roc,
+                ym: rocFromDate(dateObj).ym,   // 補卡的目標月份, 不是今天
+                displayName: profile.displayName,
+                userId: profile.userId || '',
+                kind: makeupStatus,
+                actionDate: rocFromDate(dateObj).roc,  // 補卡的日期
+                actionTime: timeVal,
+                lat: 0, lng: 0,
+                makeup: true
+            });
             return liff.sendMessages([
                 { type: 'flex', altText: altText, contents: bubble }
             ]);
