@@ -29,6 +29,10 @@
         .field input, .field textarea { width: 100%; box-sizing: border-box; padding: 12px; font-size: 16px; border: 1.5px solid #ddd; border-radius: 10px; background: white; font-family: inherit; }
         .field input:focus, .field textarea:focus { outline: none; border-color: #06C755; }
         .field textarea { resize: vertical; min-height: 64px; }
+        .time-wheels { display: flex; align-items: center; gap: 8px; }
+        .time-wheels select { flex: 1; box-sizing: border-box; padding: 12px; font-size: 16px; border: 1.5px solid #ddd; border-radius: 10px; background: white; font-family: inherit; color: #000; -webkit-appearance: none; appearance: none; text-align: center; text-align-last: center; }
+        .time-wheels select:focus { outline: none; border-color: #06C755; }
+        .time-colon { font-size: 18px; font-weight: 600; color: #666; }
         .status-toggle { display: flex; gap: 10px; }
         .status-toggle button { background-color: #f0f0f0; color: #333; border: 1.5px solid #ddd; }
         .status-toggle button.selected { background-color: #06C755; color: white; border-color: #06C755; }
@@ -72,8 +76,18 @@
         </div>
 
         <div class="field">
-            <label class="field-label" for="makeup-time">時間</label>
-            <input type="time" id="makeup-time">
+            <label class="field-label" for="makeup-hour">時間（24 小時制）</label>
+            <!-- 建全 2026-08-12：補卡改 24 小時制。
+                 原本是 <input type="time">，它顯示 12 或 24 小時制**由手機系統地區設定決定**，
+                 網頁這端無法指定（iOS/LINE 內建瀏覽器尤其不吃 lang 屬性）⇒ 只能自己做旋鈕。
+                 兩個 select 在手機上就是原生滾輪，00-23 / 00-59 一定是 24 小時制。
+                 值仍寫回隱藏的 #makeup-time（HH:MM），下游驗證與寫 Sheet 的程式完全不用改。 -->
+            <div class="time-wheels">
+                <select id="makeup-hour" onchange="syncMakeupTime()"><option value="">時</option></select>
+                <span class="time-colon">:</span>
+                <select id="makeup-min" onchange="syncMakeupTime()"><option value="">分</option></select>
+            </div>
+            <input type="hidden" id="makeup-time">
         </div>
 
         <div class="field">
@@ -118,6 +132,7 @@
     });
 
     document.addEventListener("DOMContentLoaded", function() {
+        buildTimeWheels();   // 補卡時間旋鈕（24 小時制），與 LIFF init 無關，先建好
         if (typeof liff === 'undefined') {
             document.getElementById('status').innerText = "❌ LIFF SDK 沒載入 (script 失敗)";
             return;
@@ -355,6 +370,31 @@
         document.getElementById('main-view').classList.remove('hidden');
     }
 
+    // === 補卡時間旋鈕（24 小時制）— 建全 2026-08-12 ===
+    // 為什麼不用 <input type="time">：它顯示 12/24 小時制由**手機系統地區**決定，網頁指定不了。
+    // 兩個 select 在手機上就是原生滾輪，00-23 一定是 24 小時制，兩支店（中科/鴻海）共用這一份。
+    function buildTimeWheels() {
+        var h = document.getElementById('makeup-hour');
+        var m = document.getElementById('makeup-min');
+        if (!h || !m || h.options.length > 1) return;   // 已建過就不重複
+        for (var i = 0; i < 24; i++) {
+            var o = document.createElement('option');
+            o.value = o.textContent = (i < 10 ? '0' : '') + i;
+            h.appendChild(o);
+        }
+        for (var j = 0; j < 60; j++) {
+            var p = document.createElement('option');
+            p.value = p.textContent = (j < 10 ? '0' : '') + j;
+            m.appendChild(p);
+        }
+    }
+    function syncMakeupTime() {
+        var h = document.getElementById('makeup-hour').value;
+        var m = document.getElementById('makeup-min').value;
+        // 兩個都選了才算填完；只選一半就留空，沿用原本「時間沒填會擋下並提示」的驗證。
+        document.getElementById('makeup-time').value = (h && m) ? (h + ':' + m) : '';
+    }
+
     function selectMakeupStatus(s) {
         makeupStatus = s;
         var inBtn = document.getElementById('makeup-status-in');
@@ -410,7 +450,13 @@
         // dateVal = 'YYYY-MM-DD'，timeVal = 'HH:MM'
         // 組成顯示文字（跟定位打卡格式一致）
         var dateObj = new Date(dateVal + 'T' + timeVal + ':00+08:00');
-        var dateTimeText = dateObj.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+        // 建全 2026-08-12：補卡的文字回報也要 24 小時制。
+        // 原本 toLocaleString('zh-TW') 預設 12 小時制 → 「2026/8/12 下午2:30:00」，下午幾點要自己換算。
+        // 🔴 不用 Intl 的 hour12:false：不同引擎在午夜會給 00:xx 或 24:xx（Safari 有過 24:00 的老 bug），
+        //    而補卡的日期時間是使用者自己選的（YYYY-MM-DD ＋ HH:MM），直接組字最穩、跨裝置一致。
+        var _dp = dateVal.split('-');
+        var dateTimeText = Number(_dp[0]) + '/' + Number(_dp[1]) + '/' + Number(_dp[2]) +
+                           ' ' + timeVal + ':00';
 
         statusDiv.innerText = "正在傳送補卡 Flex 至 LINE...";
 
