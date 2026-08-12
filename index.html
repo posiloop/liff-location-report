@@ -286,7 +286,7 @@
                 var lat = position.coords.latitude;
                 var lng = position.coords.longitude;
                 var ts = position.timestamp;
-                var time = new Date(ts).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+                var time = fmtTaipei24(new Date(ts));   // 建全 2026-08-12：改 24 小時制
 
                 statusDiv.innerText = "定位成功！正在準備 Flex 訊息（" + status + "）...";
 
@@ -368,6 +368,30 @@
     function hideCheckinForm() {
         document.getElementById('checkin-form-view').classList.add('hidden');
         document.getElementById('main-view').classList.remove('hidden');
+    }
+
+    // === 台北時間 24 小時制格式化（建全 2026-08-12「一起改」：正常上下班打卡也不要上午/下午）===
+    // 為什麼不用 toLocaleString('zh-TW', {hour12:false})：
+    //   ① zh-TW 預設是 12 小時制 → 原本印「2026/8/12 下午2:30:00」
+    //   ② 光加 hour12:false 在不同引擎午夜會給 00:xx 或 **24:xx**（Safari 有過 24:00 的老 bug）
+    // 這裡改用 formatToParts 逐欄取值（時區固定 Asia/Taipei，不看員工手機時區），
+    // 並把 24 正規化成 00 —— 打卡就是會有人在午夜前後打，這個邊界不能靠運氣。
+    function fmtTaipei24(d) {
+        try {
+            var parts = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'Asia/Taipei', hourCycle: 'h23',
+                year: 'numeric', month: 'numeric', day: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            }).formatToParts(d);
+            var g = {};
+            parts.forEach(function(p) { g[p.type] = p.value; });
+            var hh = (g.hour === '24') ? '00' : g.hour;
+            return Number(g.year) + '/' + Number(g.month) + '/' + Number(g.day) +
+                   ' ' + hh + ':' + g.minute + ':' + g.second;
+        } catch (e) {
+            // Intl 掛了也不能擋住打卡——退回原本格式，寧可顯示 12 小時制也要送得出去
+            return d.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
+        }
     }
 
     // === 補卡時間旋鈕（24 小時制）— 建全 2026-08-12 ===
