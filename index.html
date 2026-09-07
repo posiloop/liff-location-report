@@ -348,7 +348,7 @@
                 var gerr = gpsProblem(position);
                 if (gerr) {
                     statusDiv.innerText = "定位訊號異常：" + gerr;
-                    alert("GPS異常請重試");
+                    alert("打卡未送出：GPS異常，請重新嘗試。");
                     return;
                 }
 
@@ -386,7 +386,7 @@
                     if (rng.block) {
                         statusDiv.innerText = rng.text;
                         if (rng.netfail) {
-                            alert("網路異常，打卡未送出。\n\n請確認網路連線後重新嘗試。");
+                            alert("打卡未送出：網路異常，請重新嘗試。");
                         } else {
                             // 建全 2026-09-07 msg 22893：只講「超出範圍」，不揭露差幾公里、不提補卡
                             alert("打卡未送出：您目前不在允許範圍內。");
