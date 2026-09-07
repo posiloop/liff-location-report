@@ -348,7 +348,7 @@
                 var gerr = gpsProblem(position);
                 if (gerr) {
                     statusDiv.innerText = "定位訊號異常：" + gerr;
-                    alert("定位訊號異常（" + gerr + "）。\n\n請到窗邊或戶外，等定位穩定後再按一次。\n（這次沒有送出打卡）");
+                    alert("GPS異常請重試");
                     return;
                 }
 
