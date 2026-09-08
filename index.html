@@ -38,6 +38,11 @@
         .status-toggle button.selected { background-color: #06C755; color: white; border-color: #06C755; }
         .submit-btn { background-color: #d62828; margin-top: 4px; }
         .submit-btn:active { background-color: #b51d1d; }
+
+        /* --- 定位等待轉圈（建全 2026-09-08 msg 23217：「等待時間像死機一樣沒動靜」）--- */
+        .spinner { width: 24px; height: 24px; margin: 14px auto 0; border: 3px solid #e8e8e8;
+                   border-top-color: #06C755; border-radius: 50%; animation: spin .8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -52,6 +57,7 @@
             <button onclick="getAndShareLocation('下班')">下班</button>
         </div>
         <button class="makeup-btn" onclick="showCheckinForm()">補卡</button>
+        <div id="spinner" class="spinner hidden"></div>
         <div id="status">正在初始化 LINE LIFF...</div>
     </div>
 
@@ -126,7 +132,17 @@
 
     // 🔴 GPS 垃圾值防呆（建全 2026-09-07 ④）：實測紀錄裡出現過離站 13,084 km 的值。
     //    若不擋，硬擋上線後「人在店裡卻被拒絕打卡」會變成常態故障。
-    //    三道：① 數值有效 ② 落在台灣範圍 ③ 精度不能爛到無意義
+    //
+    // 🔴🔴 2026-09-08 建全 msg 23217/23219 改版：**精度不再是一個獨立的門檻**。
+    //    舊版：accuracy > 1000m ⇒ 直接擋。實測踩到——手機回 ±1800m，人明明在店裡卻被拒。
+    //    問題在於「誤差 1.8km」與「容許範圍 2km」是兩個會打架的數字，而舊版分開判：
+    //      · 門檻訂鬆 ⇒ 3km 外的人也可能過（誤差把他推進圈內）
+    //      · 門檻訂緊 ⇒ 站在店裡的人被擋（室內定位本來就爛）
+    //    新版：兩者**合成一個判斷**——`距離 + 誤差 ≤ 半徑`（見 checkRange）。
+    //      · 人在店裡 ⇒ 距離≈0，誤差 1.8km 仍 ≤ 2km ⇒ **過**
+    //      · 人在 1km 外、誤差 1.8km ⇒ 2.8km > 2km ⇒ **擋**
+    //    ⇒ 這裡只留「這個座標根本是壞資料」的三道，⛔ 不再替範圍做精度判斷。
+    //    ⚠️ 5000m 這個數字是「壞資料 vs 爛訊號」的分界，⛔ 不是範圍門檻——別再把它當範圍改。
     function gpsProblem(pos){
         var c = pos && pos.coords;
         if (!c) return 'no-coords';
@@ -134,7 +150,7 @@
         if (typeof la!=='number' || typeof ln!=='number' || isNaN(la) || isNaN(ln)) return '座標無效';
         if (la===0 && ln===0) return '座標為 0,0';
         if (la<21.5 || la>25.5 || ln<119.3 || ln>122.2) return '座標不在台灣範圍(' + la.toFixed(4) + ',' + ln.toFixed(4) + ')';
-        if (typeof c.accuracy==='number' && c.accuracy>1000) return 'GPS 精度過差(±' + Math.round(c.accuracy) + 'm)';
+        if (typeof c.accuracy==='number' && c.accuracy>5000) return 'GPS 精度離譜(±' + Math.round(c.accuracy) + 'm)';
         return null;
     }
 
@@ -153,7 +169,13 @@
     // 回傳 {block:bool, text:string}
     // 🔴 建全 2026-09-07 msg 22886 裁示：**照擋**。設定拿不到就不讓打卡、顯示網路異常請重試，
     //    有問題走補卡流程補。（我原本提的 B「放行標待確認」已作廢，別再改回去。）
-    function checkRange(lat,lng){
+    // 🔴 建全 2026-09-08 msg 23219 核可：`距離 + 誤差 ≤ 半徑` 才放行。
+    //    accM = position.coords.accuracy（公尺，手機自報的 68% 信心圈半徑）。
+    //    ⚠️ accuracy 缺值時當 0（＝完全信任該點）——這是**刻意的 fail-open**：
+    //       實務上每個瀏覽器都會給這個欄位，為了一個假設性的缺值把全體擋掉風險更大。
+    //       ⛔ 但這是「選擇」不是「沒想到」，要改成 fail-closed 需建全一句。
+    function checkRange(lat,lng,accM){
+        var accKm = (typeof accM==='number' && !isNaN(accM) && accM>0) ? accM/1000 : 0;
         if (!GEO.ok || !GEO.sites)
             return { block:true, netfail:true, text:'網路異常（' + (GEO.reason||'設定未載入') + '）' };
         if (GEO.mySites === null || GEO.mySites === undefined)
@@ -167,9 +189,13 @@
             if (best===null || d<best.d) best={ site:nm, d:d, r:(loc.radiusKm||2) };
         }
         if (!best) return { block:false, text:'待確認（指派的 site 不存在）' };
-        if (best.d<=best.r) return { block:false, text:'正常 '+best.d.toFixed(2)+'km ('+best.site+')' };
-        return { block:true, site:best.site, d:best.d, r:best.r,
-                 text:'超出範圍 '+best.d.toFixed(2)+'km（'+best.site+' 允許 '+best.r+'km）' };
+        // 🔴 合成判斷：最壞情況（人在誤差圈最遠那一側）仍在範圍內才算數
+        var worst = best.d + accKm;
+        if (worst<=best.r)
+            return { block:false, text:'正常 '+best.d.toFixed(2)+'km ±'+Math.round(accKm*1000)+'m ('+best.site+')' };
+        return { block:true, site:best.site, d:best.d, r:best.r, acc:accKm, worst:worst,
+                 text:'超出範圍 距離'+best.d.toFixed(2)+'km ＋誤差'+accKm.toFixed(2)+'km ＝'
+                      +worst.toFixed(2)+'km（'+best.site+' 允許 '+best.r+'km）' };
     }
 
     function sendToSheet(payload){
@@ -333,9 +359,19 @@
     }
 
     // ===== 定位打卡（既有） =====
+    // 🔴 建全 2026-09-08 msg 23217 ②：點下去到出結果之間畫面完全沒動靜，「像死機一樣」。
+    //    ⇒ 所有「還在跑」的狀態一律 busy=true 轉圈，所有終點一律 busy=false 收掉。
+    //    ⚠️ 新增終點時**必須**呼叫 setStatus(..., false)，否則轉圈會永遠轉下去
+    //       ＝比沒有動畫更糟（使用者會一直等一個不會來的結果）。
+    function setStatus(text, busy) {
+        var s = document.getElementById('status');
+        if (s) s.innerText = text;
+        var sp = document.getElementById('spinner');
+        if (sp) sp.classList.toggle('hidden', !busy);
+    }
+
     function getAndShareLocation(status) {
-        var statusDiv = document.getElementById('status');
-        statusDiv.innerText = "正在定位中（" + status + "），請稍候...";
+        setStatus("正在定位中（" + status + "），請稍候...", true);
 
         if (!navigator.geolocation) {
             alert("您的裝置不支援 GPS 定位。");
@@ -347,8 +383,13 @@
                 // 🔴 GPS 垃圾值先擋（在做任何判斷之前）——壞座標會讓範圍檢核得出荒謬結論
                 var gerr = gpsProblem(position);
                 if (gerr) {
-                    statusDiv.innerText = "定位訊號異常：" + gerr;
-                    alert("打卡未送出：GPS異常，請重新嘗試。");
+                    // 🔴 建全 2026-09-08 msg 23217 ③：**員工頁面不得出現任何精度數字**
+                    //    （原本這行會印「GPS 精度過差(±1800m)」）。細節不上畫面。
+                    //    ⚠️ 代價：員工回報「打不了卡」時看不出卡在哪一關。
+                    //       短代號（E1/E2…）已提給建全，**未獲點頭前不加**。
+                    // 建全 msg 23219 核可：加短代號，⛔ 仍不露距離／誤差／不提補卡
+                    setStatus("定位訊號異常，請重新嘗試。（E1）", false);
+                    alert("打卡未送出：GPS異常，請重新嘗試。（E1）");
                     return;
                 }
 
@@ -357,10 +398,11 @@
                 var ts = position.timestamp;
                 var time = fmtTaipei24(new Date(ts));   // 建全 2026-08-12：改 24 小時制
 
-                statusDiv.innerText = "定位成功！正在準備 Flex 訊息（" + status + "）...";
+                setStatus("定位成功！正在準備 Flex 訊息（" + status + "）...", true);
 
                 if (typeof liff === 'undefined' || !liff.isInClient || !liff.isInClient()) {
-                    statusDiv.innerText = "非 LINE 內開啟，無法送 Flex。座標：" + lat + ", " + lng;
+                    setStatus("非 LINE 內開啟，無法送 Flex。座標：" + lat + ", " + lng
+                              + "\n誤差 ±" + Math.round(position.coords.accuracy) + " 公尺", false);
                     return;
                 }
 
@@ -370,11 +412,11 @@
                         if (typeof liff.requestDevicePermission === 'function') {
                             liff.requestDevicePermission('chat_message.write');
                         }
-                        statusDiv.innerText = "等待權限授權中...";
+                        setStatus("等待權限授權中...", false);
                         return;
                     }
                 } catch (permErr) {
-                    statusDiv.innerText = "權限檢查錯誤: " + JSON.stringify(permErr);
+                    setStatus("權限檢查錯誤: " + JSON.stringify(permErr), false);
                     return;
                 }
 
@@ -382,18 +424,23 @@
                     // 🔴 範圍硬擋（建全 2026-09-07 令）：超出範圍就不送出，不是事後標紅字
                     return loadGeoConfig(profile.userId||'').then(function(){ return profile; });
                 }).then(function(profile) {
-                    var rng = checkRange(lat, lng);
+                    var rng = checkRange(lat, lng, position.coords.accuracy);
                     if (rng.block) {
-                        statusDiv.innerText = rng.text;
+                        // 🔴 建全 2026-09-07 msg 22893 裁示「只講不在允許範圍，不揭露距離」——
+                        //    alert 那行當時改了，**這行狀態列沒跟上**，一直在印「超出範圍 X.XX km（站 允許 Y km）」。
+                        //    ⇒ 同一條裁示只落實了一半。2026-09-08 補齊。
+                        //    （rng.text 仍在物件裡，之後要做代號/後台診斷可直接取用，只是不上員工畫面。）
+                        setStatus(rng.netfail ? "網路異常，請重新嘗試。（E3）"
+                                              : "打卡未送出：您目前不在允許範圍內。（E2）", false);
                         if (rng.netfail) {
-                            alert("打卡未送出：網路異常，請重新嘗試。");
+                            alert("打卡未送出：網路異常，請重新嘗試。（E3）");
                         } else {
                             // 建全 2026-09-07 msg 22893：只講「超出範圍」，不揭露差幾公里、不提補卡
-                            alert("打卡未送出：您目前不在允許範圍內。");
+                            alert("打卡未送出：您目前不在允許範圍內。（E2）");
                         }
                         return null;
                     }
-                    statusDiv.innerText = "正在傳送 Flex 至 LINE...";
+                    setStatus("正在傳送 Flex 至 LINE...", true);
                     var altText = '【AI 定位打卡】' + profile.displayName + ' / ' + status + ' / ' +
                                   lat.toFixed(6) + ',' + lng.toFixed(6) + ' / ' + time;
                     var bubble = buildFlexBubble(profile, status, lat, lng, time);
@@ -416,19 +463,22 @@
                     ]);
                 }).then(function(sent) {
                     if (sent === null) return;   // 被範圍擋下：不顯示成功畫面
-                    statusDiv.innerText = "傳送成功";
+                    setStatus("傳送成功", false);
                     showSuccessScreen();
                 }).catch(function(error) {
                     var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
                     alert('LINE 傳送失敗，錯誤原因: ' + msg);
-                    statusDiv.innerText = "傳送失敗: " + msg;
+                    setStatus("傳送失敗: " + msg, false);
                 });
             },
             function(error) {
-                statusDiv.innerText = "定位失敗，請確保手機已開啟定位功能並允許權限。";
-                alert("錯誤代碼: " + error.code + " - " + error.message);
+                setStatus("定位失敗，請確保手機已開啟定位功能並允許權限。（E4）", false);
+                // ⚠️ 原本這行把瀏覽器原始錯誤碼／英文訊息直接彈給員工。
+                //    建全 msg 23217 的方向是「員工頁面不要出現技術細節」⇒ 收斂成 E4。
+                alert("打卡未送出：手機沒有回傳定位，請確認定位已開啟後再試。（E4）");
             },
-            { enableHighAccuracy: true, timeout: 10000 }
+            // 🔴 建全 2026-09-08 msg 23217 ①：10 秒在室內／剛開 App 常常來不及 ⇒ 15 秒（他指定的數字）
+            { enableHighAccuracy: true, timeout: 15000 }
         );
     }
 
