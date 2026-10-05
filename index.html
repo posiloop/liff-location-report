@@ -257,21 +257,23 @@
                     {
                         type: 'box', layout: 'horizontal', spacing: 'xxl',
                         contents: [
+                            // 🔴 建全 2026-10-05 msg28901：打卡人原本 flex:0（照內容撐寬），
+                            //    LINE 名稱一長（例「🐱懷澤💖✈️Give It My All😘」）就把「狀態」擠出卡片外被切掉，
+                            //    卡片上看起來像沒選上下班。⇒ 名字那格 flex:1 吃剩餘寬度並換行，狀態那格 flex:0 永遠保留寬度。
                             {
-                                type: 'box', layout: 'vertical', spacing: 'xs', flex: 0,
+                                type: 'box', layout: 'vertical', spacing: 'xs', flex: 1,
                                 contents: [
                                     { type: 'text', text: '打卡人', size: 'xs', color: '#999999' },
                                     { type: 'text', text: displayName, size: 'md', weight: 'bold', wrap: true }
                                 ]
                             },
                             {
-                                type: 'box', layout: 'vertical', spacing: 'xs', flex: 0, paddingStart: '24px',
+                                type: 'box', layout: 'vertical', spacing: 'xs', flex: 0,
                                 contents: [
                                     { type: 'text', text: '狀態', size: 'xs', color: '#999999' },
                                     { type: 'text', text: status, size: 'md', weight: 'bold', color: '#000000' }
                                 ]
-                            },
-                            { type: 'filler' }
+                            }
                         ]
                     },
                     {
@@ -322,21 +324,23 @@
                     {
                         type: 'box', layout: 'horizontal', spacing: 'xxl',
                         contents: [
+                            // 🔴 建全 2026-10-05 msg28901：打卡人原本 flex:0（照內容撐寬），
+                            //    LINE 名稱一長（例「🐱懷澤💖✈️Give It My All😘」）就把「狀態」擠出卡片外被切掉，
+                            //    卡片上看起來像沒選上下班。⇒ 名字那格 flex:1 吃剩餘寬度並換行，狀態那格 flex:0 永遠保留寬度。
                             {
-                                type: 'box', layout: 'vertical', spacing: 'xs', flex: 0,
+                                type: 'box', layout: 'vertical', spacing: 'xs', flex: 1,
                                 contents: [
                                     { type: 'text', text: '打卡人', size: 'xs', color: '#999999' },
                                     { type: 'text', text: displayName, size: 'md', weight: 'bold', wrap: true }
                                 ]
                             },
                             {
-                                type: 'box', layout: 'vertical', spacing: 'xs', flex: 0, paddingStart: '24px',
+                                type: 'box', layout: 'vertical', spacing: 'xs', flex: 0,
                                 contents: [
                                     { type: 'text', text: '狀態', size: 'xs', color: '#999999' },
                                     { type: 'text', text: status, size: 'md', weight: 'bold', color: '#000000' }
                                 ]
-                            },
-                            { type: 'filler' }
+                            }
                         ]
                     },
                     {
