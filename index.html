@@ -107,6 +107,14 @@
 
 <script>
     // Apps Script webhook for 員工LINE打卡紀錄 sheet (建全 2026-06-06 部署)
+    // 測試版（建全 2026-11-11 msg38093）：網址帶 ?test=1 ⇒ 不寫 Sheet、不傳卡片到聊天室，其餘流程（定位、範圍檢核）照跑。
+    //    liff.line.me/{id}?test=1 第一次進來時參數包在 liff.state 裡，兩處都要看。
+    var TEST_MODE = (function(){
+        var q = location.search || '';
+        if (/[?&]test=1(&|$)/.test(q)) return true;
+        var m = q.match(/[?&]liff\.state=([^&]*)/);
+        return !!(m && /[?&]test=1(&|$)/.test(decodeURIComponent(m[1])));
+    })();
     var PUNCH_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbyds_P9WkA-pK9qmz_e-JVLG_-NPDVNfULs1967cYa4ulQfimxzEy8da-2tpBIFupwX/exec';
 
     function rocFromDate(d){
@@ -199,6 +207,7 @@
     }
 
     function sendToSheet(payload){
+        if (TEST_MODE) { console.log('[測試版] 不寫 Sheet', payload); return; }
         if (!PUNCH_WEBHOOK_URL) return;
         try{
             fetch(PUNCH_WEBHOOK_URL, {
@@ -226,7 +235,10 @@
         }
         liff.init({ liffId: '2010233112-czPa88PE' })
             .then(function() {
-                document.getElementById('status').innerText = "LINE 元件載入成功，準備就緒。";
+                document.getElementById('status').innerText = TEST_MODE
+                    ? "⚠️ 測試版：按了不會記錄，也不會傳卡片到聊天室。"
+                    : "LINE 元件載入成功，準備就緒。";
+                if (TEST_MODE) document.querySelector('h2').innerText += '（測試版）';
             })
             .catch(function(err) {
                 document.getElementById('status').innerText =
@@ -462,6 +474,7 @@
                         lat: lat, lng: lng,
                         makeup: false
                     });
+                    if (TEST_MODE) { alert('【測試版】沒有記錄\n' + altText); return true; }
                     return liff.sendMessages([
                         { type: 'flex', altText: altText, contents: bubble }
                     ]);
@@ -639,6 +652,7 @@
                 lat: 0, lng: 0,
                 makeup: true
             });
+            if (TEST_MODE) { alert('【測試版】沒有記錄\n' + altText); return true; }
             return liff.sendMessages([
                 { type: 'flex', altText: altText, contents: bubble }
             ]);
@@ -659,7 +673,7 @@
         overlay.innerHTML =
             '<div style="background:#fff;border-radius:18px;padding:28px 24px;text-align:center;max-width:340px;width:100%;box-shadow:0 12px 48px rgba(0,0,0,.3)">' +
                 '<div style="font-size:56px;line-height:1;margin-bottom:14px">✅</div>' +
-                '<div style="font-size:18px;font-weight:700;color:#06C755;margin-bottom:6px">已成功送出</div>' +
+                '<div style="font-size:18px;font-weight:700;color:#06C755;margin-bottom:6px">' + (TEST_MODE ? '測試完成（沒有記錄）' : '已成功送出') + '</div>' +
                 '<div style="color:#666;font-size:13px;margin-bottom:20px;line-height:1.6">' +
                     '訊息已送到聊天室<br>' +
                     '<strong>提示：</strong>返回 LINE 後若看不到新訊息，<br>' +
