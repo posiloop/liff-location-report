@@ -50,10 +50,6 @@
         .field input, .field textarea { width: 100%; box-sizing: border-box; padding: 12px; font-size: 16px; border: 1.5px solid #ddd; border-radius: 10px; background: white; font-family: inherit; }
         .field input:focus, .field textarea:focus { outline: none; border-color: #06C755; }
         .field textarea { resize: vertical; min-height: 64px; }
-        .time-wheels { display: flex; align-items: center; gap: 8px; }
-        .time-wheels select { flex: 1; box-sizing: border-box; padding: 12px; font-size: 16px; border: 1.5px solid #ddd; border-radius: 10px; background: white; font-family: inherit; color: #000; -webkit-appearance: none; appearance: none; text-align: center; text-align-last: center; }
-        .time-wheels select:focus { outline: none; border-color: #06C755; }
-        .time-colon { font-size: 18px; font-weight: 600; color: #666; }
         .status-toggle { display: flex; gap: 10px; }
         .status-toggle button { background-color: #f0f0f0; color: #333; border: 1.5px solid #ddd; --sh: #bbbbbb; }
         .status-toggle button.selected { background-color: #06C755; color: white; border-color: #06C755; --sh: #037a34; }
@@ -82,6 +78,30 @@
         .spinner { width: 24px; height: 24px; margin: 14px auto 0; border: 3px solid #e8e8e8;
                    border-top-color: #06C755; border-radius: 50%; animation: spin .8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        /* 開頁載入按鈕時的綠色轉圈（建全 msg38211）：按鈕區 visibility:hidden 期間只露出這顆 */
+        #main-buttons { position: relative; }
+        .load-spin { display: none; position: absolute; left: 50%; top: 50%; margin: -12px 0 0 -12px; }
+        #main-buttons.pending .load-spin { display: block; visibility: visible; }
+
+        /* 滑動式時間選擇（建全 msg38211：照業績回報 LIFF，分鐘只有 00／30）*/
+        button.time-wheel { width: 100%; background: #fff; color: #000; border: 1.5px solid #ddd; border-radius: 10px; padding: 12px; font-size: 16px; font-weight: normal; box-shadow: none; text-align: center; }
+        button.time-wheel:active { background: #f5f5f7; transform: none; box-shadow: none; }
+        button.time-wheel.empty { color: #999; }
+        .tp-modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1600; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .tp-sheet { background: #fff; border-radius: 16px; width: 100%; max-width: 340px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.3); }
+        .tp-title { padding: 16px; text-align: center; font-weight: 600; color: #06C755; border-bottom: 1px solid #eee; font-size: 16px; }
+        .tp-cols { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 8px 0 0; height: 236px; }
+        .tp-col-label { position: absolute; top: 8px; font-size: 13px; color: #999; text-align: center; width: 50%; font-weight: 500; }
+        .tp-col-label:nth-child(1) { left: 0; } .tp-col-label:nth-child(2) { left: 50%; }
+        .tp-col { height: 200px; margin-top: 24px; overflow-y: scroll; scroll-snap-type: y mandatory; text-align: center; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .tp-col::-webkit-scrollbar { display: none; }
+        .tp-item { height: 40px; line-height: 40px; font-size: 20px; color: #999; scroll-snap-align: center; font-variant-numeric: tabular-nums; }
+        .tp-item.selected { color: #000; font-weight: 600; }
+        .tp-highlight { position: absolute; top: calc(24px + 80px); left: 0; right: 0; height: 40px; background: rgba(6,199,85,.08); border-top: 1px solid #06C755; border-bottom: 1px solid #06C755; pointer-events: none; }
+        .tp-actions { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #eee; }
+        .tp-actions button { padding: 14px; border: none; border-radius: 0; background: transparent; color: #333; font-size: 16px; font-weight: normal; box-shadow: none; }
+        .tp-actions button:active { background: #f5f5f7; transform: none; box-shadow: none; }
+        .tp-actions .tp-ok { color: #06C755; font-weight: 700; border-left: 1px solid #eee; }
     </style>
 </head>
 <body>
@@ -101,6 +121,7 @@
             <button class="meal-btn hidden" id="meal-btn" onclick="showMealForm()">誤餐</button>
             <button class="ot-btn" onclick="showOtForm()">加班</button>
         </div>
+        <div class="spinner load-spin"></div>
         </div>
         <div id="spinner" class="spinner hidden"></div>
         <div id="status">正在初始化 LINE LIFF...</div>
@@ -127,17 +148,14 @@
         </div>
 
         <div class="field">
-            <label class="field-label" for="makeup-hour">時間（24 小時制）</label>
+            <label class="field-label">時間（24 小時制）</label>
             <!-- 建全 2026-08-12：補卡改 24 小時制。
                  原本是 <input type="time">，它顯示 12 或 24 小時制**由手機系統地區設定決定**，
                  網頁這端無法指定（iOS/LINE 內建瀏覽器尤其不吃 lang 屬性）⇒ 只能自己做旋鈕。
                  兩個 select 在手機上就是原生滾輪，00-23 / 00-59 一定是 24 小時制。
                  值仍寫回隱藏的 #makeup-time（HH:MM），下游驗證與寫 Sheet 的程式完全不用改。 -->
-            <div class="time-wheels">
-                <select id="makeup-hour" onchange="syncMakeupTime()"><option value="">時</option></select>
-                <span class="time-colon">:</span>
-                <select id="makeup-min" onchange="syncMakeupTime()"><option value="">分</option></select>
-            </div>
+            <!-- 建全 msg38211：改成業績回報那種滑動選擇，分鐘只有 00／30。選完值寫回隱藏的 #makeup-time。 -->
+            <button type="button" class="time-wheel empty" id="makeup-tbtn" data-val="" data-def="09:00" onclick="openTimePicker(this)">請選擇時間</button>
             <input type="hidden" id="makeup-time">
         </div>
 
@@ -164,20 +182,12 @@
             </div>
         </div>
         <div class="field">
-            <label class="field-label" for="ot-start-hour">加班開始（24 小時制）</label>
-            <div class="time-wheels">
-                <select id="ot-start-hour"><option value="">時</option></select>
-                <span class="time-colon">:</span>
-                <select id="ot-start-min"><option value="">分</option></select>
-            </div>
+            <label class="field-label">加班開始（24 小時制）</label>
+            <button type="button" class="time-wheel empty" id="ot-start-tbtn" data-val="" data-def="18:00" onclick="openTimePicker(this)">請選擇時間</button>
         </div>
         <div class="field">
-            <label class="field-label" for="ot-end-hour">加班結束（24 小時制）<span id="ot-next-day" class="next-day hidden"></span></label>
-            <div class="time-wheels">
-                <select id="ot-end-hour"><option value="">時</option></select>
-                <span class="time-colon">:</span>
-                <select id="ot-end-min"><option value="">分</option></select>
-            </div>
+            <label class="field-label">加班結束（24 小時制）<span id="ot-next-day" class="next-day hidden"></span></label>
+            <button type="button" class="time-wheel empty" id="ot-end-tbtn" data-val="" data-def="21:00" onclick="openTimePicker(this)">請選擇時間</button>
         </div>
         <div class="field">
             <label class="field-label" for="ot-reason">原因</label>
@@ -223,6 +233,24 @@
             </div>
         </div>
         <div id="review-status" style="margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap;"></div>
+    </div>
+
+    <!-- 滑動式時間選擇（建全 msg38211，照業績回報 LIFF）-->
+    <div id="timePickerModal" class="tp-modal" style="display:none">
+        <div class="tp-sheet">
+            <div class="tp-title">選擇時間</div>
+            <div class="tp-cols">
+                <div class="tp-col-label">時</div>
+                <div class="tp-col-label">分</div>
+                <div class="tp-col" id="tpHours"></div>
+                <div class="tp-col" id="tpMinutes"></div>
+                <div class="tp-highlight"></div>
+            </div>
+            <div class="tp-actions">
+                <button type="button" onclick="closeTimePicker(false)">取消</button>
+                <button type="button" class="tp-ok" onclick="closeTimePicker(true)">確定</button>
+            </div>
+        </div>
     </div>
 
 <script>
@@ -353,11 +381,13 @@
     });
 
     document.addEventListener("DOMContentLoaded", function() {
-        buildTimeWheels();   // 補卡時間旋鈕（24 小時制），與 LIFF init 無關，先建好
-        ['ot-start', 'ot-end'].forEach(function(p){ fillWheel(p + '-hour', 24); fillWheel(p + '-min', 60); });
+        // 審核連結（建全 msg38211）：一開就是身份驗證＋轉圈，不先露出打卡畫面那幾行字
+        var reviewEarly = readUrlParam('review');
+        if (reviewEarly) showReviewLoading();
         // 按鈕在身分確定前不顯示（防誤餐按鈕晚到擠版面）；init 卡死時 8 秒後照樣放出來，不能讓人永遠看不到按鈕
         var revealTimer = setTimeout(revealButtons, 8000);
         if (typeof liff === 'undefined') {
+            if (reviewEarly) { clearTimeout(revealTimer); showReviewMessage('身份驗證失敗', 'LINE 元件沒有載入，請關掉後重新點「主管審核」。'); return; }
             revealButtons();
             document.getElementById('status').innerText = "❌ LIFF SDK 沒載入 (script 失敗)";
             return;
@@ -385,6 +415,7 @@
                 }
             })
             .catch(function(err) {
+                if (reviewEarly) { clearTimeout(revealTimer); showReviewMessage('身份驗證失敗', '無法確認您的身分，請關掉後重新點「主管審核」。'); return; }
                 revealButtons();
                 document.getElementById('status').innerText =
                     "初始化失敗: " + (err && err.message ? err.message : JSON.stringify(err));
@@ -703,6 +734,7 @@
         document.getElementById('makeup-status-out').classList.remove('selected');
         document.getElementById('makeup-date').value = '';
         document.getElementById('makeup-time').value = '';
+        resetWheel('makeup');
         document.getElementById('makeup-reason').value = '';
         document.getElementById('makeup-status').innerText = '';
         openForm('checkin-form-view');
@@ -730,31 +762,6 @@
             // Intl 掛了也不能擋住打卡——退回原本格式，寧可顯示 12 小時制也要送得出去
             return d.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
         }
-    }
-
-    // === 補卡時間旋鈕（24 小時制）— 建全 2026-08-12 ===
-    // 為什麼不用 <input type="time">：它顯示 12/24 小時制由**手機系統地區**決定，網頁指定不了。
-    // 兩個 select 在手機上就是原生滾輪，00-23 一定是 24 小時制，兩支店（中科/鴻海）共用這一份。
-    function buildTimeWheels() {
-        var h = document.getElementById('makeup-hour');
-        var m = document.getElementById('makeup-min');
-        if (!h || !m || h.options.length > 1) return;   // 已建過就不重複
-        for (var i = 0; i < 24; i++) {
-            var o = document.createElement('option');
-            o.value = o.textContent = (i < 10 ? '0' : '') + i;
-            h.appendChild(o);
-        }
-        for (var j = 0; j < 60; j++) {
-            var p = document.createElement('option');
-            p.value = p.textContent = (j < 10 ? '0' : '') + j;
-            m.appendChild(p);
-        }
-    }
-    function syncMakeupTime() {
-        var h = document.getElementById('makeup-hour').value;
-        var m = document.getElementById('makeup-min').value;
-        // 兩個都選了才算填完；只選一半就留空，沿用原本「時間沒填會擋下並提示」的驗證。
-        document.getElementById('makeup-time').value = (h && m) ? (h + ':' + m) : '';
     }
 
     function selectMakeupStatus(s) {
@@ -880,7 +887,8 @@
     // 沒有 webhook 後端 ⇒ 申請內容整包放在網址裡；審核人身分在開啟當下用 getProfile 的 userId 判。
     // 名單一律用 LINE userId（顯示名會改）。
     var REVIEWERS = {                       // 可以按 通過／退回 的人
-        'Uc0b3e65aafa5165d50084ba0c4a085c5': '林軒徹'
+        'Uc0b3e65aafa5165d50084ba0c4a085c5': '林軒徹',
+        'Uaa14b6d4fc1eae259e936af371c96ddd': '盧建全'   // 建全 msg38211：開發期間可審全部人（含自己）
     };
     var REVIEW_ALL_APPLICANTS = true;       // 建全 msg38186「所有人都要跳出主管審核」；改回 false 才只看下面名單
     var REVIEWABLE_APPLICANTS = {           // REVIEW_ALL_APPLICANTS=false 時才用：只開放審核這些人的申請
@@ -926,6 +934,16 @@
     }
 
     var REVIEW = null;   // { q, profile }
+
+    // 審核連結一打開先蓋這個（建全 msg38211）：只有「身份驗證中」＋轉圈，不露打卡畫面
+    function showReviewLoading() {
+        document.title = '主管審核';
+        showView('review-view');
+        document.getElementById('review-title').innerText = '身份驗證中';
+        var body = document.getElementById('review-body');
+        body.innerHTML = '<div class="spinner"></div>';
+        document.getElementById('review-actions').classList.add('hidden');
+    }
 
     function showReviewMessage(title, msg) {
         showView('review-view');
@@ -1050,22 +1068,62 @@
         });
     }
 
-    function fillWheel(id, n) {
-        var s = document.getElementById(id);
-        if (!s || s.options.length > 1) return;
-        for (var i = 0; i < n; i++) {
-            var o = document.createElement('option');
-            o.value = o.textContent = (i < 10 ? '0' : '') + i;
-            s.appendChild(o);
-        }
-    }
-    function wheelVal(prefix) {
-        var h = document.getElementById(prefix + '-hour').value, m = document.getElementById(prefix + '-min').value;
-        return (h && m) ? h + ':' + m : '';
-    }
+    function wheelVal(prefix) { return document.getElementById(prefix + '-tbtn').dataset.val || ''; }
     function resetWheel(prefix) {
-        document.getElementById(prefix + '-hour').value = '';
-        document.getElementById(prefix + '-min').value = '';
+        var b = document.getElementById(prefix + '-tbtn');
+        b.dataset.val = ''; b.textContent = '請選擇時間'; b.classList.add('empty');
+    }
+
+    // === 滑動式時間選擇（建全 msg38211，照業績回報 LIFF：時 00–23、分只有 00／30）===
+    // 為什麼不用 <input type="time">：12／24 小時制由手機系統地區決定，網頁指定不了（建全 2026-08-12）。
+    // 開著時也是一層歷史：返回鍵只關選擇器（建全 msg38179 ⑥）。
+    var TP_ROW = 40, _tpTarget = null;
+    function openTimePicker(btn) {
+        _tpTarget = btn;
+        var cur = (btn.dataset.val || btn.dataset.def || '09:00').split(':');
+        var curH = parseInt(cur[0], 10) || 0, curM = parseInt(cur[1], 10) || 0;
+        var hours = document.getElementById('tpHours'), minutes = document.getElementById('tpMinutes');
+        var pad = '<div class="tp-item"></div><div class="tp-item"></div>';
+        var hh = '', mm = '';
+        for (var h = 0; h < 24; h++) hh += '<div class="tp-item" data-v="' + h + '">' + (h < 10 ? '0' : '') + h + '</div>';
+        [0, 30].forEach(function(m){ mm += '<div class="tp-item" data-v="' + m + '">' + (m ? '30' : '00') + '</div>'; });
+        hours.innerHTML = pad + hh + pad;
+        minutes.innerHTML = pad + mm + pad;
+        document.getElementById('timePickerModal').style.display = 'flex';
+        pushLayer(hideTimePicker);
+        requestAnimationFrame(function() {
+            hours.scrollTop = curH * TP_ROW;
+            minutes.scrollTop = (curM >= 30 ? 1 : 0) * TP_ROW;
+            tpMark();
+        });
+        hours.onscroll = tpMark;
+        minutes.onscroll = tpMark;
+    }
+    function tpPick(id) {
+        var col = document.getElementById(id);
+        var el = col.querySelectorAll('.tp-item')[Math.round(col.scrollTop / TP_ROW) + 2];
+        return el && el.dataset.v != null ? parseInt(el.dataset.v, 10) : null;
+    }
+    function tpMark() {
+        ['tpHours', 'tpMinutes'].forEach(function(id) {
+            var col = document.getElementById(id), idx = Math.round(col.scrollTop / TP_ROW) + 2;
+            col.querySelectorAll('.tp-item').forEach(function(el, i) { el.classList.toggle('selected', i === idx); });
+        });
+    }
+    function hideTimePicker() { document.getElementById('timePickerModal').style.display = 'none'; _tpTarget = null; }
+    function closeTimePicker(commit) {
+        if (commit && _tpTarget) {
+            var h = tpPick('tpHours'), m = tpPick('tpMinutes');
+            if (h != null && m != null) {
+                var val = (h < 10 ? '0' : '') + h + ':' + (m ? '30' : '00');
+                _tpTarget.dataset.val = val;
+                _tpTarget.textContent = val;
+                _tpTarget.classList.remove('empty');
+                if (_tpTarget.id === 'makeup-tbtn') document.getElementById('makeup-time').value = val;
+                if (_tpTarget.id.indexOf('ot-') === 0 && typeof syncOtNextDay === 'function') syncOtNextDay();
+            }
+        }
+        popLayer();
     }
     function showView(id) {
         ['main-view', 'checkin-form-view', 'ot-form-view', 'meal-form-view', 'review-view'].forEach(function(v){
