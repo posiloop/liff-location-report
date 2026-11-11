@@ -1133,8 +1133,7 @@
         body.innerHTML = '';
         if (pending && pending.length > 1) {
             var note = document.createElement('div'); note.className = 'dup-note';
-            note.innerText = q.n + ' ' + slashDate(q.d) + ' 有 ' + pending.length + ' 張' + q.t + '申請還沒審核。\n' +
-                             '左右滑動看每一張，點「審這張」選一張審核；其他張會自動標成「未審核」。';
+            note.innerText = q.n + ' ' + slashDate(q.d) + ' 有 ' + pending.length + ' 張' + q.t + '申請。';   // 建全 msg38233：只留這句
             body.appendChild(note);
             var car = document.createElement('div'); car.className = 'dup-carousel'; car.id = 'dup-carousel';
             pending.forEach(function(item, idx) {
