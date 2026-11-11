@@ -14,8 +14,24 @@
         .btn-row { display: flex; gap: 12px; }
         button { flex: 1; padding: 15px; font-size: 16px; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; transition: background 0.2s; background-color: #06C755; }
         button:active { background-color: #05a647; }
-        .makeup-btn { display: block; width: calc(50% - 6px); margin: 12px auto 0; background-color: #2563eb; }
+        /* 第二排：補卡（藍）｜誤餐（紫，只開給指定人）｜加班（紅）— 建全 2026-11-11 msg38152 */
+        .action-row { display: flex; gap: 12px; margin-top: 12px; justify-content: center; }
+        .action-row button { flex: 0 1 calc(50% - 6px); }
+        .action-row.three button { flex: 1; }
+        .makeup-btn { background-color: #2563eb; }
         .makeup-btn:active { background-color: #1d4ed8; }
+        .meal-btn { background-color: #7c3aed; }
+        .meal-btn:active { background-color: #6d28d9; }
+        .ot-btn { background-color: #d62828; }
+        .ot-btn:active { background-color: #b51d1d; }
+        .meal-submit { background-color: #7c3aed; margin-top: 4px; }
+        .meal-submit:active { background-color: #6d28d9; }
+        .inline-check { display: flex; align-items: center; gap: 6px; font-size: 15px; color: #333; white-space: nowrap; }
+        .inline-check input { width: 20px; height: 20px; margin: 0; }
+        .date-row { display: flex; align-items: center; gap: 12px; }
+        .date-row input[type=date] { flex: 1; }
+        .fixed-value { padding: 12px; font-size: 16px; border: 1.5px solid #eee; border-radius: 10px; background: #f5f5f7; color: #555; text-align: left; }
+        .next-day { font-size: 13px; color: #d62828; font-weight: 600; margin-left: 6px; }
         #status { margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap; }
 
         /* --- 補卡頁面樣式 --- */
@@ -56,7 +72,11 @@
             <button onclick="getAndShareLocation('上班')">上班</button>
             <button onclick="getAndShareLocation('下班')">下班</button>
         </div>
-        <button class="makeup-btn" onclick="showCheckinForm()">補卡</button>
+        <div class="action-row" id="action-row">
+            <button class="makeup-btn" onclick="showCheckinForm()">補卡</button>
+            <button class="meal-btn hidden" id="meal-btn" onclick="showMealForm()">誤餐</button>
+            <button class="ot-btn" onclick="showOtForm()">加班</button>
+        </div>
         <div id="spinner" class="spinner hidden"></div>
         <div id="status">正在初始化 LINE LIFF...</div>
     </div>
@@ -103,6 +123,69 @@
 
         <button class="submit-btn" onclick="submitMakeupCheckin()">確認補卡</button>
         <div id="makeup-status" style="margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap;"></div>
+    </div>
+
+    <!-- === 加班申請（建全 2026-11-11 msg38152）=== -->
+    <div id="ot-form-view" class="card hidden">
+        <div class="form-header">
+            <button class="back-btn" onclick="backToMain()" aria-label="返回">←</button>
+            <div class="form-title">加班申請</div>
+        </div>
+        <div class="field">
+            <label class="field-label">狀態</label>
+            <div class="fixed-value">加班申請</div>
+        </div>
+        <div class="field">
+            <label class="field-label" for="ot-date">日期</label>
+            <div class="date-row">
+                <input type="date" id="ot-date" onchange="syncOtNextDay()">
+                <label class="inline-check"><input type="checkbox" id="ot-overnight" onchange="syncOtNextDay()">跨日</label>
+            </div>
+        </div>
+        <div class="field">
+            <label class="field-label" for="ot-start-hour">加班開始（24 小時制）</label>
+            <div class="time-wheels">
+                <select id="ot-start-hour"><option value="">時</option></select>
+                <span class="time-colon">:</span>
+                <select id="ot-start-min"><option value="">分</option></select>
+            </div>
+        </div>
+        <div class="field">
+            <label class="field-label" for="ot-end-hour">加班結束（24 小時制）<span id="ot-next-day" class="next-day hidden"></span></label>
+            <div class="time-wheels">
+                <select id="ot-end-hour"><option value="">時</option></select>
+                <span class="time-colon">:</span>
+                <select id="ot-end-min"><option value="">分</option></select>
+            </div>
+        </div>
+        <div class="field">
+            <label class="field-label" for="ot-reason">原因</label>
+            <textarea id="ot-reason" placeholder="例：備料趕單、活動支援"></textarea>
+        </div>
+        <button class="submit-btn" onclick="submitOt()">確認申請加班</button>
+        <div id="ot-status" style="margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap;"></div>
+    </div>
+
+    <!-- === 誤餐申請（建全 2026-11-11 msg38152：目前只開給物流士宏文＋建全）=== -->
+    <div id="meal-form-view" class="card hidden">
+        <div class="form-header">
+            <button class="back-btn" onclick="backToMain()" aria-label="返回">←</button>
+            <div class="form-title">誤餐申請</div>
+        </div>
+        <div class="field">
+            <label class="field-label">狀態</label>
+            <div class="fixed-value">誤餐申請</div>
+        </div>
+        <div class="field">
+            <label class="field-label" for="meal-date">日期</label>
+            <input type="date" id="meal-date">
+        </div>
+        <div class="field">
+            <label class="field-label">餐別</label>
+            <div class="fixed-value">午餐</div>
+        </div>
+        <button class="meal-submit" onclick="submitMeal()">確認申請誤餐</button>
+        <div id="meal-status" style="margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap;"></div>
     </div>
 
 <script>
@@ -229,6 +312,7 @@
 
     document.addEventListener("DOMContentLoaded", function() {
         buildTimeWheels();   // 補卡時間旋鈕（24 小時制），與 LIFF init 無關，先建好
+        ['ot-start', 'ot-end'].forEach(function(p){ fillWheel(p + '-hour', 24); fillWheel(p + '-min', 60); });
         if (typeof liff === 'undefined') {
             document.getElementById('status').innerText = "❌ LIFF SDK 沒載入 (script 失敗)";
             return;
@@ -239,6 +323,15 @@
                     ? "⚠️ 測試版：按了不會記錄，也不會傳卡片到聊天室。"
                     : "LINE 元件載入成功，準備就緒。";
                 if (TEST_MODE) document.querySelector('h2').innerText += '（測試版）';
+                // 誤餐按鈕只給名單內的人看（拿不到身分＝不顯示，fail-closed）
+                if (liff.isLoggedIn && liff.isLoggedIn()) {
+                    liff.getProfile().then(function(p){
+                        if (p && MEAL_ALLOW[p.userId]) {
+                            document.getElementById('meal-btn').classList.remove('hidden');
+                            document.getElementById('action-row').classList.add('three');
+                        }
+                    }).catch(function(){});
+                }
             })
             .catch(function(err) {
                 document.getElementById('status').innerText =
@@ -663,6 +756,229 @@
             var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
             alert('LINE 傳送失敗，錯誤原因: ' + msg);
             statusDiv.innerText = "傳送失敗: " + msg;
+        });
+    }
+
+    // ===== 加班申請／誤餐申請（建全 2026-11-11 msg38152）=====
+    // 寫進 Sheet 的方式：沿用同一支 Apps Script 的 submit（它對任何 kind 都照寫一列，不用改後端）。
+    //   加班：kind='加班申請'，動作日期＝加班開始那天，動作時間＝「18:00~22:00」或「18:00~隔日02:00」＋（原因：…）
+    //   誤餐：kind='誤餐申請'，動作日期＝那天，動作時間＝「午餐」
+    //   Apps Script 的總工時只看「上班／下班」，這兩種列不會干擾；
+    //   月總表的加班時數／誤餐費天數由 punch_summary.py 從這兩種列算出來。
+    // 誤餐目前只開給：物流士王宏文、建全本人（他要在正式版看得到）。名單用 LINE userId，不用顯示名（顯示名會改）。
+    var MEAL_ALLOW = {
+        'U05338b14b3d540e27dc9a63e5b9e2041': '王宏文',
+        'Uaa14b6d4fc1eae259e936af371c96ddd': '盧建全'
+    };
+
+    function fillWheel(id, n) {
+        var s = document.getElementById(id);
+        if (!s || s.options.length > 1) return;
+        for (var i = 0; i < n; i++) {
+            var o = document.createElement('option');
+            o.value = o.textContent = (i < 10 ? '0' : '') + i;
+            s.appendChild(o);
+        }
+    }
+    function wheelVal(prefix) {
+        var h = document.getElementById(prefix + '-hour').value, m = document.getElementById(prefix + '-min').value;
+        return (h && m) ? h + ':' + m : '';
+    }
+    function resetWheel(prefix) {
+        document.getElementById(prefix + '-hour').value = '';
+        document.getElementById(prefix + '-min').value = '';
+    }
+    function showView(id) {
+        ['main-view', 'checkin-form-view', 'ot-form-view', 'meal-form-view'].forEach(function(v){
+            document.getElementById(v).classList.toggle('hidden', v !== id);
+        });
+    }
+    function backToMain() { showView('main-view'); }
+
+    function slashDate(iso) {          // '2026-11-12' → '2026/11/12'
+        var p = iso.split('-');
+        return Number(p[0]) + '/' + Number(p[1]) + '/' + Number(p[2]);
+    }
+    function addDaysIso(iso, n) {
+        var d = new Date(iso + 'T12:00:00+08:00');
+        d.setDate(d.getDate() + n);
+        return rocFromDate(d).iso;
+    }
+
+    function showOtForm() {
+        document.getElementById('ot-date').value = '';
+        document.getElementById('ot-overnight').checked = false;
+        resetWheel('ot-start'); resetWheel('ot-end');
+        document.getElementById('ot-reason').value = '';
+        document.getElementById('ot-status').innerText = '';
+        syncOtNextDay();
+        showView('ot-form-view');
+    }
+    // 勾「跨日」⇒ 加班結束旁邊自動帶出隔天日期
+    function syncOtNextDay() {
+        var on = document.getElementById('ot-overnight').checked;
+        var d = document.getElementById('ot-date').value;
+        var tag = document.getElementById('ot-next-day');
+        tag.classList.toggle('hidden', !on);
+        tag.innerText = on ? ('隔日 ' + (d ? slashDate(addDaysIso(d, 1)) : '')) : '';
+    }
+
+    function showMealForm() {
+        document.getElementById('meal-date').value = '';
+        document.getElementById('meal-status').innerText = '';
+        showView('meal-form-view');
+    }
+
+    // 送 Flex 前的共同檢查（同補卡）：一定要在 LINE 裡、要有傳訊權限
+    function canSend(statusDiv, what) {
+        if (typeof liff === 'undefined' || !liff.isInClient || !liff.isInClient()) {
+            statusDiv.innerText = '非 LINE 內開啟，無法送 Flex。';
+            alert('請從 LINE 開啟此 LIFF 使用' + what + '功能');
+            return false;
+        }
+        try {
+            if (typeof liff.hasPermission === 'function' && !liff.hasPermission('chat_message.write')) {
+                alert('請先同意「傳送訊息至聊天室」的權限，才能正常使用' + what + '功能！');
+                if (typeof liff.requestDevicePermission === 'function') liff.requestDevicePermission('chat_message.write');
+                statusDiv.innerText = '等待權限授權中...';
+                return false;
+            }
+        } catch (permErr) {
+            statusDiv.innerText = '權限檢查錯誤: ' + JSON.stringify(permErr);
+            return false;
+        }
+        return true;
+    }
+
+    function buildApplyFlexBubble(color, title, profile, status, rows) {
+        var displayName = profile && profile.displayName ? profile.displayName : '未取得';
+        var body = [{
+            type: 'box', layout: 'horizontal', spacing: 'xxl',
+            contents: [
+                { type: 'box', layout: 'vertical', spacing: 'xs', flex: 1, contents: [
+                    { type: 'text', text: '申請人', size: 'xs', color: '#999999' },
+                    { type: 'text', text: displayName, size: 'md', weight: 'bold', wrap: true } ] },
+                { type: 'box', layout: 'vertical', spacing: 'xs', flex: 0, contents: [
+                    { type: 'text', text: '狀態', size: 'xs', color: '#999999' },
+                    { type: 'text', text: status, size: 'md', weight: 'bold', color: '#000000' } ] }
+            ]
+        }];
+        rows.forEach(function(r){
+            body.push({ type: 'box', layout: 'vertical', spacing: 'xs', contents: [
+                { type: 'text', text: r[0], size: 'xs', color: '#999999' },
+                { type: 'text', text: r[1], size: 'md', weight: 'bold', wrap: true } ] });
+        });
+        return {
+            type: 'bubble', size: 'kilo',
+            header: { type: 'box', layout: 'vertical', backgroundColor: color, paddingAll: 'md', contents: [
+                { type: 'text', text: title, color: '#FFFFFF', weight: 'bold', size: 'lg', align: 'center' },
+                { type: 'text', text: 'LIFF 系統認證', color: '#FFFFFFCC', size: 'xxs', align: 'center', margin: 'sm' } ] },
+            body: { type: 'box', layout: 'vertical', spacing: 'sm', contents: body }
+        };
+    }
+
+    function submitOt() {
+        var dateVal = document.getElementById('ot-date').value;
+        var overnight = document.getElementById('ot-overnight').checked;
+        var startVal = wheelVal('ot-start'), endVal = wheelVal('ot-end');
+        var reasonVal = document.getElementById('ot-reason').value.trim();
+        var statusDiv = document.getElementById('ot-status');
+
+        var missing = [];
+        if (!dateVal) missing.push('日期');
+        if (!startVal) missing.push('加班開始');
+        if (!endVal) missing.push('加班結束');
+        if (!reasonVal) missing.push('原因');
+        if (missing.length) {
+            alert('資訊尚未填寫完成，請補上：\n・' + missing.join('\n・'));
+            statusDiv.innerText = '尚未填完：' + missing.join('、');
+            return;
+        }
+        if (!overnight && endVal <= startVal) {
+            alert('加班結束要晚於加班開始。\n如果加班到隔天，請勾選「跨日」。');
+            statusDiv.innerText = '加班結束要晚於加班開始（跨夜請勾跨日）';
+            return;
+        }
+        if (!canSend(statusDiv, '加班申請')) return;
+
+        var endIso = overnight ? addDaysIso(dateVal, 1) : dateVal;
+        var startText = slashDate(dateVal) + ' ' + startVal;
+        var endText = slashDate(endIso) + ' ' + endVal + (overnight ? '（跨日）' : '');
+        var startObj = new Date(dateVal + 'T' + startVal + ':00+08:00');
+        statusDiv.innerText = '正在傳送加班申請至 LINE...';
+
+        liff.getProfile().then(function(profile) {
+            var altText = '【加班申請】' + profile.displayName + ' / ' + startText + ' ~ ' + endText + ' / 原因：' + reasonVal;
+            var bubble = buildApplyFlexBubble('#d62828', '⏰ 加班申請', profile, '加班申請',
+                [['加班開始', startText], ['加班結束', endText], ['原因', reasonVal]]);
+            sendToSheet({
+                action: 'submit',
+                date: rocFromDate(new Date()).roc,
+                ym: rocFromDate(startObj).ym,          // 寫進加班開始那天的月份
+                displayName: profile.displayName,
+                userId: profile.userId || '',
+                kind: '加班申請',
+                actionDate: rocFromDate(startObj).roc,
+                actionTime: startVal + '~' + (overnight ? '隔日' : '') + endVal + '（原因：' + reasonVal + '）',
+                lat: 0, lng: 0,
+                makeup: false,
+                otStart: dateVal + ' ' + startVal, otEnd: endIso + ' ' + endVal, overnight: overnight, reason: reasonVal
+            });
+            if (TEST_MODE) { alert('【測試版】沒有記錄\n' + altText); return true; }
+            return liff.sendMessages([{ type: 'flex', altText: altText, contents: bubble }]);
+        }).then(function() {
+            statusDiv.innerText = '加班申請傳送成功';
+            showSuccessScreen();
+        }).catch(function(error) {
+            var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
+            alert('LINE 傳送失敗，錯誤原因: ' + msg);
+            statusDiv.innerText = '傳送失敗: ' + msg;
+        });
+    }
+
+    function submitMeal() {
+        var dateVal = document.getElementById('meal-date').value;
+        var statusDiv = document.getElementById('meal-status');
+        if (!dateVal) {
+            alert('資訊尚未填寫完成，請補上：\n・日期');
+            statusDiv.innerText = '尚未填完：日期';
+            return;
+        }
+        if (!canSend(statusDiv, '誤餐申請')) return;
+        var dateObj = new Date(dateVal + 'T12:00:00+08:00');
+        statusDiv.innerText = '正在傳送誤餐申請至 LINE...';
+
+        liff.getProfile().then(function(profile) {
+            if (!MEAL_ALLOW[profile.userId]) {        // 按鈕藏起來之外，送出前再擋一次
+                alert('目前沒有開放您使用誤餐申請。');
+                statusDiv.innerText = '未開放';
+                return null;
+            }
+            var altText = '【誤餐申請】' + profile.displayName + ' / ' + slashDate(dateVal) + ' / 午餐';
+            var bubble = buildApplyFlexBubble('#7c3aed', '🍱 誤餐申請', profile, '誤餐申請',
+                [['日期', slashDate(dateVal)], ['餐別', '午餐']]);
+            sendToSheet({
+                action: 'submit',
+                date: rocFromDate(new Date()).roc,
+                ym: rocFromDate(dateObj).ym,
+                displayName: profile.displayName,
+                userId: profile.userId || '',
+                kind: '誤餐申請',
+                actionDate: rocFromDate(dateObj).roc,
+                actionTime: '午餐',
+                lat: 0, lng: 0,
+                makeup: false
+            });
+            if (TEST_MODE) { alert('【測試版】沒有記錄\n' + altText); return true; }
+            return liff.sendMessages([{ type: 'flex', altText: altText, contents: bubble }]);
+        }).then(function(sent) {
+            if (sent === null) return;
+            statusDiv.innerText = '誤餐申請傳送成功';
+            showSuccessScreen();
+        }).catch(function(error) {
+            var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
+            alert('LINE 傳送失敗，錯誤原因: ' + msg);
+            statusDiv.innerText = '傳送失敗: ' + msg;
         });
     }
 
