@@ -68,6 +68,7 @@
         .modal-line { font-size: 14px; color: #333; margin: 0 0 8px 0; line-height: 1.5; word-break: break-all; }
         .modal-line b { color: #999; font-weight: 500; font-size: 12px; display: block; }
         .modal-actions { display: flex; gap: 12px; margin-top: 18px; }
+        .modal-val-red { color: #d62828; font-weight: 700; }
         .modal-warn { font-size: 14px; color: #d62828; font-weight: 700; margin: 4px 0 8px 0; line-height: 1.5; }
         .modal-input-label { font-size: 12px; color: #999; display: block; margin: 6px 0 6px 0; }
         .modal-box textarea { width: 100%; box-sizing: border-box; min-height: 80px; padding: 10px; font-size: 16px; border: 1.5px solid #ddd; border-radius: 10px; font-family: inherit; }
@@ -499,7 +500,10 @@
         (opts.lines || []).forEach(function(l) {
             var d = document.createElement('div'); d.className = 'modal-line';
             var b = document.createElement('b'); b.textContent = l[0];
-            d.appendChild(b); d.appendChild(document.createTextNode(l[1]));
+            d.appendChild(b);
+            if (l[2] && l[2].red) {       // 建全 msg38243：加班總時數的數字改紅字
+                var v = document.createElement('span'); v.className = 'modal-val-red'; v.textContent = l[1]; d.appendChild(v);
+            } else d.appendChild(document.createTextNode(l[1]));
             box.appendChild(d);
         });
         if (opts.warn) {                  // 紅字提醒（建全 msg38236：加班確認「請確認加班時數已扣除休息時間」）
@@ -1490,7 +1494,7 @@
         var otHours = Math.round((endObj - startObj) / 360000) / 10;   // 建全 msg38236：顯示總時數 2、2.5（分鐘只有 00／30）
         showConfirm({
             title: '確認送出加班申請？', okText: '確認送出', okClass: 'red-btn',   // 建全 msg38186：三個確認送出一律紅
-            lines: [['加班開始', startText], ['加班結束', endText], ['加班總時數', otHours + ' 小時'], ['原因', reasonVal]],
+            lines: [['加班開始', startText], ['加班結束', endText], ['加班總時數', otHours + ' 小時', { red: true }], ['原因', reasonVal]],
             warn: '請確認加班時數已扣除休息時間',
             onOk: function() { sendOt(dateVal, overnight, startVal, endVal, reasonVal, endIso, startText, endText, startObj, statusDiv); }
         });
