@@ -80,6 +80,18 @@
         /* --- 主管審核頁（建全 msg38179 ⑦）--- */
         .review-line { text-align: left; font-size: 15px; color: #000; margin: 0 0 12px 0; line-height: 1.5; word-break: break-all; }
         .review-line b { display: block; font-size: 12px; color: #999; font-weight: 500; }
+        /* 同日多張申請（建全 msg38222）：左右滑動選一張 */
+        .dup-note { background: #fff4e5; color: #8a4b00; border-radius: 10px; padding: 10px 12px; font-size: 14px; text-align: left; margin-bottom: 12px; white-space: pre-wrap; line-height: 1.5; }
+        .dup-carousel { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; gap: 0; margin: 0 -4px; scrollbar-width: none; }
+        .dup-carousel::-webkit-scrollbar { display: none; }
+        .dup-card { flex: 0 0 100%; box-sizing: border-box; scroll-snap-align: center; padding: 14px; margin: 0 4px; border: 2px solid #e5e5ea; border-radius: 14px; background: #fff; text-align: left; }
+        .dup-card.picked { border-color: #06C755; box-shadow: 0 0 0 3px rgba(6,199,85,.15); }
+        .dup-idx { font-size: 12px; color: #999; margin-bottom: 8px; }
+        button.dup-pick { width: 100%; padding: 10px; font-size: 15px; background: #f2f2f7; color: #333; box-shadow: none; border-radius: 10px; }
+        .dup-card.picked button.dup-pick { background: #06C755; color: #fff; }
+        .dup-dots { text-align: center; margin: 8px 0 14px; }
+        .dup-dots span { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #d1d1d6; margin: 0 3px; }
+        .dup-dots span.on { background: #06C755; }
         .review-err { color: #d62828; font-size: 13px; text-align: left; margin: -6px 0 10px 2px; min-height: 0; }
 
         /* --- 定位等待轉圈（建全 2026-09-08 msg 23217：「等待時間像死機一樣沒動靜」）--- */
@@ -332,8 +344,12 @@
 
     // 不做範圍檢核的人（LINE userId，不用顯示名）。建全 2026-11-11 msg38172。
     var RANGE_EXEMPT = {
-        'Uaa14b6d4fc1eae259e936af371c96ddd': '盧建全'
+        'Uaa14b6d4fc1eae259e936af371c96ddd': '盧建全',
+        'Uc0b3e65aafa5165d50084ba0c4a085c5': '林軒徹'    // 建全 msg38222「軒徹打卡無限定位置」
     };
+    // 🔴 央廚人員（宏文、秀滿、之後的央廚人員）打卡只限「新莊央廚」（建全 msg38222）：
+    //    不在這裡寫死——改的是後端 _employees 的 sites 欄＝新莊央廚，checkRange 自然只認那一點。
+    //    秀滿還沒有 userId ⇒ 她第一次打卡後撈 userId 補進 _employees（sites=新莊央廚）。
 
     // 回傳 {block:bool, text:string}
     // 🔴 建全 2026-09-07 msg 22886 裁示：**照擋**。設定拿不到就不讓打卡、顯示網路異常請重試，
@@ -904,9 +920,15 @@
     // 申請卡片（補卡／誤餐／加班）下方的紅色「主管審核」按鈕＝uri，開回這支 LIFF（?review=<base64url JSON>）。
     // 沒有 webhook 後端 ⇒ 申請內容整包放在網址裡；審核人身分在開啟當下用 getProfile 的 userId 判。
     // 名單一律用 LINE userId（顯示名會改）。
+    // 建全 msg38222：軒徹、哲安、建全審所有人；怡安審中科＋享時蔬；巧鈺審鴻海。
+    //   sites:'*' ＝ 全部；否則＝申請人在 _employees 的 sites 有交集才能審（審核當下跟後端 config 要申請人的 sites）。
+    //   申請人沒登錄 _employees／沒指派店 ⇒ 有範圍的審核人一律權限不足（只有 '*' 的人能審）。
     var REVIEWERS = {                       // 可以按 通過／退回 的人
-        'Uc0b3e65aafa5165d50084ba0c4a085c5': '林軒徹',
-        'Uaa14b6d4fc1eae259e936af371c96ddd': '盧建全'   // 建全 msg38211：開發期間可審全部人（含自己）
+        'Uc0b3e65aafa5165d50084ba0c4a085c5': { name: '林軒徹', sites: '*' },
+        'Uaa14b6d4fc1eae259e936af371c96ddd': { name: '盧建全', sites: '*' },   // msg38211：可審全部人（含自己）
+        // 吳哲安：sites '*'——這支 LIFF 的 userId 還沒拿到（其他官方帳號的 userId 不通用），拿到再補一行
+        'Ua2b65ee9977caca010859cbbb407b04a': { name: '陳怡安', sites: ['中科', '享時蔬'] }
+        // 楊巧鈺：sites ['鴻海']——userId 待確認（_employees 的「Chiao」Ua63a24af652584a8fd44a3c14f4ee1bd 是不是她還沒對過）
     };
     var REVIEW_ALL_APPLICANTS = true;       // 建全 msg38186「所有人都要跳出主管審核」；改回 false 才只看下面名單
     var REVIEWABLE_APPLICANTS = {           // REVIEW_ALL_APPLICANTS=false 時才用：只開放審核這些人的申請
@@ -978,40 +1000,179 @@
         document.getElementById('review-actions').classList.add('hidden');
     }
 
+    function reviewGet(params) {
+        var qs = Object.keys(params).map(function(k){ return k + '=' + encodeURIComponent(params[k]); }).join('&');
+        return fetch(PUNCH_WEBHOOK_URL + '?' + qs, { method: 'GET' }).then(function(r){ return r.json(); });
+    }
+    // 有範圍的審核人：申請人的 sites 要跟審核人的範圍有交集。回 Promise<true|false|'net'>
+    function reviewerCovers(rv, applicantUid) {
+        if (rv.sites === '*') return Promise.resolve(true);
+        return reviewGet({ action: 'config', userId: applicantUid }).then(function(j) {
+            if (!j || !j.ok) return 'net';
+            var my = j.mySites || [];
+            return my.some(function(x){ return rv.sites.indexOf(x) >= 0; });
+        }).catch(function(){ return 'net'; });
+    }
+
+    // ===== 同一人同一天同類型有多張還沒審（建全 msg38222）=====
+    // Sheet 的申請列沒有申請編號（編號只在網址裡），所以用「內容」配對：
+    //   補卡＝上班/下班＋是否補卡=true，內容「上班 08:30」；加班＝「18:00–隔日02:00」；誤餐＝「午餐」
+    //   審核列（審核通過／審核退回）的動作時間開頭是「<類型> <內容>｜…」⇒ 同內容一張審過就扣一張（重複送的同內容用張數扣）
+    //   「審核未審核」列只是標記，不算審過（那張之後還是可以審）。
+    function rowType(it) {
+        if (it.kind === '加班申請') return '加班';
+        if (it.kind === '誤餐申請') return '誤餐';
+        if ((it.kind === '上班' || it.kind === '下班') && it.makeup) return '補卡';
+        return '';
+    }
+    function rowHHMM(v) {
+        var t = String(v || ''), m = t.match(/^1899-12-30T(\d{2}):(\d{2})/);   // Sheet 把 7:06 存成時間值，API 回 1899-12-30T07:06Z
+        if (m) return m[1] + ':' + m[2];
+        m = t.match(/^(\d{1,2}):(\d{2})/);
+        return m ? ('0' + m[1]).slice(-2) + ':' + m[2] : t;
+    }
+    function rowSig(it, t) {
+        if (t === '補卡') return it.kind + ' ' + rowHHMM(it.actionTime);
+        if (t === '加班') return String(it.actionTime || '').replace(/（原因：[\s\S]*）$/, '').replace('~', '–');
+        return '午餐';
+    }
+    function rowReason(it, t) {
+        var m = t === '加班' && String(it.actionTime || '').match(/（原因：([\s\S]*)）$/);
+        return m ? m[1] : '';
+    }
+    // 回 Promise<{pending:[q...], decided:{sig:結果}} | null>（null＝讀不到，照單張審）
+    function loadSameDay(q) {
+        var dObj = new Date(q.d + 'T12:00:00+08:00'), roc = rocFromDate(dObj);
+        return reviewGet({ ym: roc.ym, userId: q.u }).then(function(j) {
+            if (!j || !j.ok || !j.items) return null;
+            var apps = [], done = {}, doneRes = {};
+            j.items.forEach(function(it) {
+                if (String(it.actionDate) !== roc.roc) return;
+                var k = String(it.kind || '');
+                if (k === '審核通過' || k === '審核退回') {
+                    var head = String(it.actionTime || '').split('｜')[0];
+                    if (head.indexOf(q.t + ' ') !== 0) return;
+                    var sig = head.slice(q.t.length + 1);
+                    done[sig] = (done[sig] || 0) + 1; doneRes[sig] = k.slice(2);
+                    return;
+                }
+                if (rowType(it) !== q.t) return;
+                apps.push(it);
+            });
+            var pending = [];
+            apps.forEach(function(it) {
+                var sig = rowSig(it, q.t);
+                if (done[sig]) { done[sig]--; return; }
+                pending.push({ t: q.t, n: it.displayName || q.n, u: q.u, d: q.d, s: sig, r: rowReason(it, q.t),
+                               i: '', rid: it.id, noReason: q.t === '補卡' });
+            });
+            return { pending: pending, decided: doneRes, total: apps.length };
+        }).catch(function(){ return null; });
+    }
+
+    function reviewLines(q) {
+        var rows = [['申請類型', q.t + '申請'], ['申請人', q.n], ['日期', slashDate(q.d)], ['時間', q.s]];
+        if (q.t !== '誤餐')
+            rows.push(['原因', q.noReason ? '—（請看申請卡片）'
+                                         : (q.r || '—') + (q.rc ? '（網址長度限制已截斷，全文見申請卡片）' : '')]);
+        return rows;
+    }
+    function appendReviewLine(parent, r, t) {
+        var d = document.createElement('div'); d.className = 'review-line';
+        var b = document.createElement('b'); b.textContent = r[0];
+        d.appendChild(b);
+        if (r[0] === '申請類型' && TYPE_COLOR[t]) {   // 建全 msg38219：補卡藍／誤餐紫／加班紅（跟主畫面按鈕同色）
+            var v = document.createElement('span');
+            v.style.cssText = 'color:' + TYPE_COLOR[t] + ';font-weight:700;';
+            v.textContent = r[1];
+            d.appendChild(v);
+        } else {
+            d.appendChild(document.createTextNode(r[1]));
+        }
+        parent.appendChild(d);
+    }
+
     function enterReview(raw) {
         var q = null;
         try { q = JSON.parse(b64uDec(raw)); } catch (e) {}
         if (!q || !q.t || !q.u || !q.d || !q.i) { showReviewMessage('審核連結無效', '這個審核連結的內容讀不出來，請回到申請卡片重新點「主管審核」。'); return; }
         if (!(liff.isLoggedIn && liff.isLoggedIn())) { showReviewMessage('⛔ 權限不足', '無法確認您的身分，請從 LINE 開啟。'); return; }
-        liff.getProfile().then(function(profile) {
-            if (!profile || !REVIEWERS[profile.userId]) { showReviewMessage('⛔ 權限不足', '您沒有審核權限。'); return; }
-            if (!isReviewable(q.u)) { showReviewMessage('不在審核範圍', '目前沒有開放審核這位申請人的申請。'); return; }
-            REVIEW = { q: q, profile: profile };
-            showView('review-view');
-            document.getElementById('review-title').innerText = '主管審核' + (TEST_MODE ? '（測試版）' : '');
-            var body = document.getElementById('review-body');
-            body.innerHTML = '';
-            [['申請類型', q.t + '申請'], ['申請人', q.n], ['日期', slashDate(q.d)], ['時間', q.s],
-             ['原因', (q.r || '—') + (q.rc ? '（網址長度限制已截斷，全文見申請卡片）' : '')], ['申請編號', q.i]]
-                .forEach(function(r) {
-                    if (r[0] === '原因' && q.t === '誤餐') return;
-                    var d = document.createElement('div'); d.className = 'review-line';
-                    var b = document.createElement('b'); b.textContent = r[0];
-                    d.appendChild(b);
-                    if (r[0] === '申請類型' && TYPE_COLOR[q.t]) {   // 建全 msg38219：補卡藍／誤餐紫／加班紅（跟主畫面按鈕同色）
-                        var v = document.createElement('span');
-                        v.style.cssText = 'color:' + TYPE_COLOR[q.t] + ';font-weight:700;';
-                        v.textContent = r[1];
-                        d.appendChild(v);
-                    } else {
-                        d.appendChild(document.createTextNode(r[1]));
-                    }
-                    body.appendChild(d);
-                });
-            document.getElementById('review-reason').value = '';
-            document.getElementById('review-err').innerText = '';
-            document.getElementById('review-actions').classList.remove('hidden');
+        var profile = null, DENIED = {};
+        liff.getProfile().then(function(p) {
+            profile = p;
+            var rv = profile && REVIEWERS[profile.userId];
+            if (!rv) { showReviewMessage('⛔ 權限不足', '您沒有審核權限。'); return DENIED; }
+            if (!isReviewable(q.u)) { showReviewMessage('不在審核範圍', '目前沒有開放審核這位申請人的申請。'); return DENIED; }
+            return reviewerCovers(rv, q.u).then(function(c) {
+                if (c === 'net') { showReviewMessage('⛔ 權限不足', '查不到申請人所屬的店，請稍後再試一次。'); return DENIED; }
+                if (!c) { showReviewMessage('⛔ 權限不足', '這位同仁不在您可以審核的店。'); return DENIED; }
+                return loadSameDay(q);
+            });
+        }).then(function(day) {
+            if (day === DENIED) return;             // 上面已顯示權限訊息（day===null＝讀不到表格，照單張審）
+            renderReview(q, profile, day);
         }).catch(function() { showReviewMessage('⛔ 權限不足', '無法確認您的身分，請稍後再試。'); });
+    }
+
+    function renderReview(q, profile, day) {
+        var others = [];
+        var pending = day ? day.pending : null;
+        if (pending) {
+            var mine = -1;
+            for (var k = 0; k < pending.length; k++) if (pending[k].s === q.s) { mine = k; break; }
+            if (mine < 0 && day.decided[q.s]) {
+                showReviewMessage('這張已經審核過了', reviewSummary(q) + '\n已經' + day.decided[q.s] + '，不用再審。');
+                return;
+            }
+            if (mine >= 0) { pending[mine] = q; } else { pending = null; }   // 表格還沒寫到這張 ⇒ 照單張審
+        }
+        REVIEW = { q: q, profile: profile, others: [] };
+        showView('review-view');
+        document.getElementById('review-title').innerText = '主管審核' + (TEST_MODE ? '（測試版）' : '');
+        var body = document.getElementById('review-body');
+        body.innerHTML = '';
+        if (pending && pending.length > 1) {
+            var note = document.createElement('div'); note.className = 'dup-note';
+            note.innerText = q.n + ' ' + slashDate(q.d) + ' 有 ' + pending.length + ' 張' + q.t + '申請還沒審核。\n' +
+                             '左右滑動看每一張，點「審這張」選一張審核；其他張會自動標成「未審核」。';
+            body.appendChild(note);
+            var car = document.createElement('div'); car.className = 'dup-carousel'; car.id = 'dup-carousel';
+            pending.forEach(function(item, idx) {
+                var c = document.createElement('div'); c.className = 'dup-card'; c.dataset.idx = idx;
+                var h = document.createElement('div'); h.className = 'dup-idx'; h.innerText = '第 ' + (idx + 1) + ' / ' + pending.length + ' 張';
+                c.appendChild(h);
+                reviewLines(item).forEach(function(r){ appendReviewLine(c, r, item.t); });
+                var b = document.createElement('button'); b.type = 'button'; b.className = 'dup-pick';
+                b.addEventListener('click', function(){ pickDup(pending, idx); });
+                c.appendChild(b);
+                car.appendChild(c);
+            });
+            body.appendChild(car);
+            var dots = document.createElement('div'); dots.className = 'dup-dots'; dots.id = 'dup-dots';
+            pending.forEach(function(){ dots.appendChild(document.createElement('span')); });
+            body.appendChild(dots);
+            car.addEventListener('scroll', function(){ markDot(Math.round(car.scrollLeft / car.clientWidth)); });
+            pickDup(pending, pending.indexOf(q));
+            setTimeout(function(){ car.scrollLeft = pending.indexOf(q) * car.clientWidth; markDot(pending.indexOf(q)); }, 0);
+        } else {
+            reviewLines(q).forEach(function(r){ appendReviewLine(body, r, q.t); });
+        }
+        document.getElementById('review-reason').value = '';
+        document.getElementById('review-err').innerText = '';
+        document.getElementById('review-actions').classList.remove('hidden');
+    }
+    function markDot(i) {
+        var d = document.getElementById('dup-dots'); if (!d) return;
+        [].forEach.call(d.children, function(x, k){ x.className = k === i ? 'on' : ''; });
+    }
+    function pickDup(pending, idx) {
+        REVIEW.q = pending[idx];
+        REVIEW.others = pending.filter(function(_, k){ return k !== idx; });
+        document.querySelectorAll('.dup-card').forEach(function(c) {
+            var on = Number(c.dataset.idx) === idx;
+            c.classList.toggle('picked', on);
+            c.querySelector('.dup-pick').innerText = on ? '✓ 審核這張' : '審這張';
+        });
     }
 
     function startReview(result) {
@@ -1041,7 +1202,7 @@
         var rows = [['結果', result], ['審核內容', reviewSummary(q)]];
         if (result === '退回') rows.push(['退回原因', reason]);
         rows.push(['審核人', reviewer.displayName || '未取得'],   // 建全 msg38183：只顯示 LINE 名稱
-                  ['審核時間', timeText], ['申請編號', q.i]);
+                  ['審核時間', timeText]);   // 建全 msg38222：申請編號只留表格
         return {
             type: 'bubble', size: 'kilo',
             // 建全 msg38183：通過／退回 header 一律橘色，「結果」字維持綠紅
@@ -1075,10 +1236,21 @@
             kind: '審核' + result,
             actionDate: rocFromDate(dateObj).roc,
             actionTime: q.t + ' ' + q.s + '｜審核人：' + (reviewer.displayName || '') + '（' + reviewer.userId + '）｜' + timeText +
-                        (result === '退回' ? '｜退回原因：' + reason : '') + '｜申請編號：' + q.i,
+                        (result === '退回' ? '｜退回原因：' + reason : '') + '｜申請編號：' + (q.i || '—') + (q.rid ? '｜申請列：' + q.rid : ''),
             lat: 0, lng: 0,
             makeup: false,
             reviewer: reviewer.displayName || '', reviewerId: reviewer.userId, reqId: q.i, reqType: q.t, rejectReason: reason
+        });
+        // 建全 msg38222：同日同類其他張 ⇒ 寫一列「審核未審核」當標記（不算審過，之後仍可審）
+        (REVIEW.others || []).forEach(function(o) {
+            sendToSheet({
+                action: 'submit', date: rocFromDate(new Date()).roc, ym: rocFromDate(dateObj).ym,
+                displayName: o.n, userId: o.u, kind: '審核未審核', actionDate: rocFromDate(dateObj).roc,
+                actionTime: o.t + ' ' + o.s + '｜同日另一張（' + q.s + '）已' + result + '｜審核人：' + (reviewer.displayName || '') +
+                            '（' + reviewer.userId + '）｜' + timeText + '｜申請編號：' + (o.i || '—') + (o.rid ? '｜申請列：' + o.rid : ''),
+                lat: 0, lng: 0, makeup: false,
+                reviewer: reviewer.displayName || '', reviewerId: reviewer.userId, reqId: o.i || '', reqType: o.t
+            });
         });
         var altText = '【審核' + result + '】' + summary + '（審核人：' + (reviewer.displayName || '') + '）' +
                       (result === '退回' ? ' 原因：' + reason : '');
