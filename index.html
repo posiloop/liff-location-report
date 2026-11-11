@@ -68,6 +68,9 @@
         .modal-line { font-size: 14px; color: #333; margin: 0 0 8px 0; line-height: 1.5; word-break: break-all; }
         .modal-line b { color: #999; font-weight: 500; font-size: 12px; display: block; }
         .modal-actions { display: flex; gap: 12px; margin-top: 18px; }
+        /* 錯誤／提示框（建全 msg38214/38216）：取代 window.alert —— 原生框上面會印「posiloop.github.io 顯示」，字也小 */
+        .alert-mask { z-index: 2100; }
+        .alert-msg { font-size: 18px; line-height: 1.6; color: #000; white-space: pre-wrap; word-break: break-all; text-align: left; margin: 4px 0 0 0; }
 
         /* --- 主管審核頁（建全 msg38179 ⑦）--- */
         .review-line { text-align: left; font-size: 15px; color: #000; margin: 0 0 12px 0; line-height: 1.5; word-break: break-all; }
@@ -443,6 +446,25 @@
     function popLayer() { if (navStack.length) history.back(); }
     window.addEventListener('popstate', function() { var f = navStack.pop(); if (f) f(); });
 
+    // 錯誤／提示框（建全 msg38214/38216）：取代 window.alert。
+    // 原生 alert 在 LINE 內建瀏覽器上方會印「posiloop.github.io 顯示」且字小 ⇒ 自己畫，跟確認視窗同一套；返回鍵也能關。
+    function showAlert(msg, onOk) {
+        var mask = document.createElement('div');
+        mask.className = 'modal-mask alert-mask';
+        var box = document.createElement('div'); box.className = 'modal-box';
+        var t = document.createElement('div'); t.className = 'alert-msg'; t.textContent = String(msg);
+        var acts = document.createElement('div'); acts.className = 'modal-actions';
+        var ok = document.createElement('button'); ok.type = 'button'; ok.className = 'green-btn'; ok.textContent = '確定';
+        acts.appendChild(ok); box.appendChild(t); box.appendChild(acts); mask.appendChild(box);
+        document.body.appendChild(mask);
+        var closed = false;
+        pushLayer(function() { if (mask.parentNode) mask.parentNode.removeChild(mask); if (!closed) { closed = true; if (onOk) onOk(); } });
+        ok.addEventListener('click', popLayer);
+    }
+    function requestChatPermission() {
+        try { if (typeof liff.requestDevicePermission === 'function') liff.requestDevicePermission('chat_message.write'); } catch (e) {}
+    }
+
     // 送出前確認視窗（不用 window.confirm：LINE 內建瀏覽器的原生對話框會卡住畫面）
     // lines: [[標籤, 值], ...]
     function showConfirm(opts) {
@@ -612,7 +634,7 @@
         setStatus("正在定位中（" + status + "），請稍候...", true);
 
         if (!navigator.geolocation) {
-            alert("您的裝置不支援 GPS 定位。");
+            showAlert("您的裝置不支援 GPS 定位。");
             return;
         }
 
@@ -627,7 +649,7 @@
                     //       短代號（E1/E2…）已提給建全，**未獲點頭前不加**。
                     // 建全 msg 23219 核可：加短代號，⛔ 仍不露距離／誤差／不提補卡
                     setStatus("定位訊號異常，請重新嘗試。（E1）", false);
-                    alert("打卡未送出：GPS異常，請重新嘗試。（E1）");
+                    showAlert("打卡未送出：GPS異常，請重新嘗試。（E1）");
                     return;
                 }
 
@@ -646,10 +668,7 @@
 
                 try {
                     if (typeof liff.hasPermission === 'function' && !liff.hasPermission('chat_message.write')) {
-                        alert("請先同意「傳送訊息至聊天室」的權限，才能正常使用定位回報功能！");
-                        if (typeof liff.requestDevicePermission === 'function') {
-                            liff.requestDevicePermission('chat_message.write');
-                        }
+                        showAlert("請先同意「傳送訊息至聊天室」的權限，才能正常使用定位回報功能！", requestChatPermission);
                         setStatus("等待權限授權中...", false);
                         return;
                     }
@@ -674,10 +693,10 @@
                         setStatus(rng.netfail ? "網路異常，請重新嘗試。（E3）"
                                               : "打卡未送出：您目前不在允許範圍內。（E2）", false);
                         if (rng.netfail) {
-                            alert("打卡未送出：網路異常，請重新嘗試。（E3）");
+                            showAlert("打卡未送出：網路異常，請重新嘗試。（E3）");
                         } else {
                             // 建全 2026-09-07 msg 22893：只講「超出範圍」，不揭露差幾公里、不提補卡
-                            alert("打卡未送出：您目前不在允許範圍內。（E2）");
+                            showAlert("打卡未送出：您目前不在允許範圍內。（E2）");
                         }
                         return null;
                     }
@@ -699,7 +718,7 @@
                         lat: lat, lng: lng,
                         makeup: false
                     });
-                    if (TEST_MODE) { alert('【測試版】沒有記錄\n' + altText); return true; }
+                    if (TEST_MODE) { showAlert('【測試版】沒有記錄\n' + altText); return true; }
                     return liff.sendMessages([
                         { type: 'flex', altText: altText, contents: bubble }
                     ]);
@@ -709,7 +728,7 @@
                     showSuccessScreen();
                 }).catch(function(error) {
                     var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
-                    alert('LINE 傳送失敗，錯誤原因: ' + msg);
+                    showAlert('LINE 傳送失敗，錯誤原因: ' + msg);
                     setStatus("傳送失敗: " + msg, false);
                 });
             },
@@ -717,7 +736,7 @@
                 setStatus("定位失敗，請確保手機已開啟定位功能並允許權限。（E4）", false);
                 // ⚠️ 原本這行把瀏覽器原始錯誤碼／英文訊息直接彈給員工。
                 //    建全 msg 23217 的方向是「員工頁面不要出現技術細節」⇒ 收斂成 E4。
-                alert("打卡未送出：手機沒有回傳定位，請確認定位已開啟後再試。（E4）");
+                showAlert("打卡未送出：手機沒有回傳定位，請確認定位已開啟後再試。（E4）");
             },
             // 🔴 建全 2026-09-08 msg 23217 ①：10 秒在室內／剛開 App 常常來不及 ⇒ 15 秒（他指定的數字）
             { enableHighAccuracy: true, timeout: 15000 }
@@ -791,23 +810,20 @@
         if (!reasonVal) missing.push('原因');
 
         if (missing.length > 0) {
-            alert('資訊尚未填寫完成，請補上：\n・' + missing.join('\n・'));
+            showAlert('資訊尚未填寫完成，請補上：\n・' + missing.join('\n・'));
             statusDiv.innerText = '尚未填完：' + missing.join('、');
             return;
         }
 
         if (typeof liff === 'undefined' || !liff.isInClient || !liff.isInClient()) {
             statusDiv.innerText = '非 LINE 內開啟，無法送 Flex。';
-            alert('請從 LINE 開啟此 LIFF 使用補卡功能');
+            showAlert('請從 LINE 開啟此 LIFF 使用補卡功能');
             return;
         }
 
         try {
             if (typeof liff.hasPermission === 'function' && !liff.hasPermission('chat_message.write')) {
-                alert("請先同意「傳送訊息至聊天室」的權限，才能正常使用補卡功能！");
-                if (typeof liff.requestDevicePermission === 'function') {
-                    liff.requestDevicePermission('chat_message.write');
-                }
+                showAlert("請先同意「傳送訊息至聊天室」的權限，才能正常使用補卡功能！", requestChatPermission);
                 statusDiv.innerText = "等待權限授權中...";
                 return;
             }
@@ -856,7 +872,7 @@
                 lat: 0, lng: 0,
                 makeup: true
             });
-            if (TEST_MODE) { alert('【測試版】沒有記錄\n' + altText); return true; }
+            if (TEST_MODE) { showAlert('【測試版】沒有記錄\n' + altText); return true; }
             return liff.sendMessages([
                 { type: 'flex', altText: altText, contents: bubble }
             ]);
@@ -865,7 +881,7 @@
             showSuccessScreen();
         }).catch(function(error) {
             var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
-            alert('LINE 傳送失敗，錯誤原因: ' + msg);
+            showAlert('LINE 傳送失敗，錯誤原因: ' + msg);
             statusDiv.innerText = "傳送失敗: " + msg;
         });
     }
@@ -1055,7 +1071,7 @@
         var altText = '【審核' + result + '】' + summary + '（審核人：' + (reviewer.displayName || '') + '）' +
                       (result === '退回' ? ' 原因：' + reason : '');
         var bubble = buildReviewResultBubble(q, result, reason, reviewer, timeText);
-        var p = TEST_MODE ? Promise.resolve(alert('【測試版】沒有記錄\n' + altText))
+        var p = TEST_MODE ? Promise.resolve(showAlert('【測試版】沒有記錄\n' + altText))
                           : liff.sendMessages([{ type: 'flex', altText: altText, contents: bubble }]);
         p.then(function() {
             statusDiv.innerText = '審核結果傳送成功';
@@ -1063,7 +1079,7 @@
             showSuccessScreen();
         }).catch(function(error) {
             var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
-            alert('LINE 傳送失敗，錯誤原因: ' + msg);
+            showAlert('LINE 傳送失敗，錯誤原因: ' + msg);
             statusDiv.innerText = '傳送失敗: ' + msg;
         });
     }
@@ -1172,13 +1188,12 @@
     function canSend(statusDiv, what) {
         if (typeof liff === 'undefined' || !liff.isInClient || !liff.isInClient()) {
             statusDiv.innerText = '非 LINE 內開啟，無法送 Flex。';
-            alert('請從 LINE 開啟此 LIFF 使用' + what + '功能');
+            showAlert('請從 LINE 開啟此 LIFF 使用' + what + '功能');
             return false;
         }
         try {
             if (typeof liff.hasPermission === 'function' && !liff.hasPermission('chat_message.write')) {
-                alert('請先同意「傳送訊息至聊天室」的權限，才能正常使用' + what + '功能！');
-                if (typeof liff.requestDevicePermission === 'function') liff.requestDevicePermission('chat_message.write');
+                showAlert('請先同意「傳送訊息至聊天室」的權限，才能正常使用' + what + '功能！', requestChatPermission);
                 statusDiv.innerText = '等待權限授權中...';
                 return false;
             }
@@ -1223,12 +1238,12 @@
         if (!endVal) missing.push('加班結束');
         if (!reasonVal) missing.push('原因');
         if (missing.length) {
-            alert('資訊尚未填寫完成，請補上：\n・' + missing.join('\n・'));
+            showAlert('資訊尚未填寫完成，請補上：\n・' + missing.join('\n・'));
             statusDiv.innerText = '尚未填完：' + missing.join('、');
             return;
         }
         if (!overnight && endVal <= startVal) {
-            alert('加班結束要晚於加班開始。\n如果加班到隔天，請勾選「跨日」。');
+            showAlert('加班結束要晚於加班開始。\n如果加班到隔天，請勾選「跨日」。');
             statusDiv.innerText = '加班結束要晚於加班開始（跨夜請勾跨日）';
             return;
         }
@@ -1266,14 +1281,14 @@
                 makeup: false,
                 otStart: dateVal + ' ' + startVal, otEnd: endIso + ' ' + endVal, overnight: overnight, reason: reasonVal
             });
-            if (TEST_MODE) { alert('【測試版】沒有記錄\n' + altText); return true; }
+            if (TEST_MODE) { showAlert('【測試版】沒有記錄\n' + altText); return true; }
             return liff.sendMessages([{ type: 'flex', altText: altText, contents: bubble }]);
         }).then(function() {
             statusDiv.innerText = '加班申請傳送成功';
             showSuccessScreen();
         }).catch(function(error) {
             var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
-            alert('LINE 傳送失敗，錯誤原因: ' + msg);
+            showAlert('LINE 傳送失敗，錯誤原因: ' + msg);
             statusDiv.innerText = '傳送失敗: ' + msg;
         });
     }
@@ -1282,7 +1297,7 @@
         var dateVal = document.getElementById('meal-date').value;
         var statusDiv = document.getElementById('meal-status');
         if (!dateVal) {
-            alert('資訊尚未填寫完成，請補上：\n・日期');
+            showAlert('資訊尚未填寫完成，請補上：\n・日期');
             statusDiv.innerText = '尚未填完：日期';
             return;
         }
@@ -1300,7 +1315,7 @@
 
         liff.getProfile().then(function(profile) {
             if (!MEAL_ALLOW[profile.userId]) {        // 按鈕藏起來之外，送出前再擋一次
-                alert('目前沒有開放您使用誤餐申請。');
+                showAlert('目前沒有開放您使用誤餐申請。');
                 statusDiv.innerText = '未開放';
                 return null;
             }
@@ -1320,7 +1335,7 @@
                 lat: 0, lng: 0,
                 makeup: false
             });
-            if (TEST_MODE) { alert('【測試版】沒有記錄\n' + altText); return true; }
+            if (TEST_MODE) { showAlert('【測試版】沒有記錄\n' + altText); return true; }
             return liff.sendMessages([{ type: 'flex', altText: altText, contents: bubble }]);
         }).then(function(sent) {
             if (sent === null) return;
@@ -1328,7 +1343,7 @@
             showSuccessScreen();
         }).catch(function(error) {
             var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
-            alert('LINE 傳送失敗，錯誤原因: ' + msg);
+            showAlert('LINE 傳送失敗，錯誤原因: ' + msg);
             statusDiv.innerText = '傳送失敗: ' + msg;
         });
     }
