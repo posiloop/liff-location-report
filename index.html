@@ -530,26 +530,19 @@
             body: {
                 type: 'box', layout: 'vertical', spacing: 'sm',
                 contents: [
+                    // 建全 msg38183：kilo 卡左右並排會把「狀態」擠成直排，改成跟其他欄位一樣上下排
                     {
-                        type: 'box', layout: 'horizontal', spacing: 'xxl',
+                        type: 'box', layout: 'vertical', spacing: 'xs',
                         contents: [
-                            // 🔴 建全 2026-10-05 msg28901：打卡人原本 flex:0（照內容撐寬），
-                            //    LINE 名稱一長（例「🐱懷澤💖✈️Give It My All😘」）就把「狀態」擠出卡片外被切掉，
-                            //    卡片上看起來像沒選上下班。⇒ 名字那格 flex:1 吃剩餘寬度並換行，狀態那格 flex:0 永遠保留寬度。
-                            {
-                                type: 'box', layout: 'vertical', spacing: 'xs', flex: 1,
-                                contents: [
-                                    { type: 'text', text: '打卡人', size: 'xs', color: '#999999' },
-                                    { type: 'text', text: displayName, size: 'md', weight: 'bold', wrap: true }
-                                ]
-                            },
-                            {
-                                type: 'box', layout: 'vertical', spacing: 'xs', flex: 0,
-                                contents: [
-                                    { type: 'text', text: '狀態', size: 'xs', color: '#999999' },
-                                    { type: 'text', text: status, size: 'md', weight: 'bold', color: '#000000' }
-                                ]
-                            }
+                            { type: 'text', text: '打卡人', size: 'xs', color: '#999999' },
+                            { type: 'text', text: displayName, size: 'md', weight: 'bold', wrap: true }
+                        ]
+                    },
+                    {
+                        type: 'box', layout: 'vertical', spacing: 'xs',
+                        contents: [
+                            { type: 'text', text: '狀態', size: 'xs', color: '#999999' },
+                            { type: 'text', text: status, size: 'md', weight: 'bold', color: '#000000' }
                         ]
                     },
                     {
@@ -999,11 +992,12 @@
         var color = result === '通過' ? '#06C755' : '#d62828';
         var rows = [['結果', result], ['審核內容', reviewSummary(q)]];
         if (result === '退回') rows.push(['退回原因', reason]);
-        rows.push(['審核人', reviewer.displayName || '未取得'], ['審核人 LINE ID', reviewer.userId],
+        rows.push(['審核人', reviewer.displayName || '未取得'],   // 建全 msg38183：只顯示 LINE 名稱
                   ['審核時間', timeText], ['申請編號', q.i]);
         return {
             type: 'bubble', size: 'kilo',
-            header: { type: 'box', layout: 'vertical', backgroundColor: color, paddingAll: 'md', contents: [
+            // 建全 msg38183：通過／退回 header 一律橘色，「結果」字維持綠紅
+            header: { type: 'box', layout: 'vertical', backgroundColor: '#f28c28', paddingAll: 'md', contents: [
                 { type: 'text', text: (result === '通過' ? '✅ 審核通過' : '❌ 審核退回'), color: '#FFFFFF', weight: 'bold', size: 'lg', align: 'center' },
                 { type: 'text', text: 'LIFF 系統認證', color: '#FFFFFFCC', size: 'xxs', align: 'center', margin: 'sm' } ] },
             body: { type: 'box', layout: 'vertical', spacing: 'sm', contents: rows.map(function(r) {
