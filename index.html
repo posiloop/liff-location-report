@@ -146,7 +146,7 @@
             <textarea id="makeup-reason" placeholder="例：忘記打卡、定位失敗、未帶手機"></textarea>
         </div>
 
-        <button class="submit-btn" onclick="submitMakeupCheckin()">確認補卡</button>
+        <button class="submit-btn" onclick="submitMakeupCheckin()">確認申請</button>
         <div id="makeup-status" style="margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap;"></div>
     </div>
 
@@ -183,7 +183,7 @@
             <label class="field-label" for="ot-reason">原因</label>
             <textarea id="ot-reason" placeholder="例：輪值晚班、人力支援、額外任務"></textarea>
         </div>
-        <button class="submit-btn" onclick="submitOt()">確認申請加班</button>
+        <button class="submit-btn" onclick="submitOt()">確認申請</button>
         <div id="ot-status" style="margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap;"></div>
     </div>
 
@@ -201,7 +201,7 @@
             <label class="field-label">餐別</label>
             <div class="fixed-value">午餐</div>
         </div>
-        <button class="meal-submit" onclick="submitMeal()">確認申請誤餐</button>
+        <button class="submit-btn" onclick="submitMeal()">確認申請</button>
         <div id="meal-status" style="margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap;"></div>
     </div>
 
@@ -822,7 +822,7 @@
         var st = makeupStatus;
 
         showConfirm({
-            title: '確認送出補卡？', okText: '確認送出', okClass: 'makeup-btn',
+            title: '確認送出補卡？', okText: '確認送出', okClass: 'red-btn',   // 建全 msg38186：三個確認送出一律紅
             lines: [['狀態', st], ['時間', dateTimeText], ['原因', reasonVal]],
             onOk: function() { sendMakeup(st, dateVal, timeVal, dateObj, dateTimeText, reasonVal, statusDiv); }
         });
@@ -882,7 +882,8 @@
     var REVIEWERS = {                       // 可以按 通過／退回 的人
         'Uc0b3e65aafa5165d50084ba0c4a085c5': '林軒徹'
     };
-    var REVIEWABLE_APPLICANTS = {           // 目前只開放審核這些人的申請；不在名單＝卡片不出審核按鈕
+    var REVIEW_ALL_APPLICANTS = true;       // 建全 msg38186「所有人都要跳出主管審核」；改回 false 才只看下面名單
+    var REVIEWABLE_APPLICANTS = {           // REVIEW_ALL_APPLICANTS=false 時才用：只開放審核這些人的申請
         'U05338b14b3d540e27dc9a63e5b9e2041': '王宏文'
     };
     var LIFF_URL = 'https://liff.line.me/2010233112-czPa88PE';
@@ -896,13 +897,14 @@
         while (b.length % 4) b += '=';
         return decodeURIComponent(escape(atob(b)));
     }
+    function isReviewable(uid) { return !!uid && (REVIEW_ALL_APPLICANTS || !!REVIEWABLE_APPLICANTS[uid]); }
     function newReqId() {
         return 'R' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 1296).toString(36).toUpperCase();
     }
     // 申請人不在 REVIEWABLE_APPLICANTS ⇒ 回 ''（卡片不加按鈕）
     // 原因太長讓網址超過上限 ⇒ 截短原因並標 rc=1，審核頁會明講「已截斷，全文看申請卡片」（不靜默截斷）
     function reviewUriFor(profile, type, dateIso, timeText, reason) {
-        if (!profile || !REVIEWABLE_APPLICANTS[profile.userId]) return '';
+        if (!profile || !isReviewable(profile.userId)) return '';
         var q = { t: type, n: profile.displayName || '', u: profile.userId, d: dateIso, s: timeText, r: reason || '', i: newReqId() };
         var uri = LIFF_URL + '?review=' + b64uEnc(JSON.stringify(q));
         while (uri.length > FLEX_URI_MAX && q.r) {
@@ -946,7 +948,7 @@
         if (!(liff.isLoggedIn && liff.isLoggedIn())) { showReviewMessage('⛔ 權限不足', '無法確認您的身分，請從 LINE 開啟。'); return; }
         liff.getProfile().then(function(profile) {
             if (!profile || !REVIEWERS[profile.userId]) { showReviewMessage('⛔ 權限不足', '您沒有審核權限。'); return; }
-            if (!REVIEWABLE_APPLICANTS[q.u]) { showReviewMessage('不在審核範圍', '目前沒有開放審核這位申請人的申請。'); return; }
+            if (!isReviewable(q.u)) { showReviewMessage('不在審核範圍', '目前沒有開放審核這位申請人的申請。'); return; }
             REVIEW = { q: q, profile: profile };
             showView('review-view');
             document.getElementById('review-title').innerText = '主管審核' + (TEST_MODE ? '（測試版）' : '');
@@ -1179,7 +1181,7 @@
         var endText = slashDate(endIso) + ' ' + endVal + (overnight ? '（跨日）' : '');
         var startObj = new Date(dateVal + 'T' + startVal + ':00+08:00');
         showConfirm({
-            title: '確認送出加班申請？', okText: '確認送出', okClass: 'ot-btn',
+            title: '確認送出加班申請？', okText: '確認送出', okClass: 'red-btn',   // 建全 msg38186：三個確認送出一律紅
             lines: [['加班開始', startText], ['加班結束', endText], ['原因', reasonVal]],
             onOk: function() { sendOt(dateVal, overnight, startVal, endVal, reasonVal, endIso, startText, endText, startObj, statusDiv); }
         });
@@ -1229,7 +1231,7 @@
         if (!canSend(statusDiv, '誤餐申請')) return;
         var dateObj = new Date(dateVal + 'T12:00:00+08:00');
         showConfirm({
-            title: '確認送出誤餐申請？', okText: '確認送出', okClass: 'meal-submit',
+            title: '確認送出誤餐申請？', okText: '確認送出', okClass: 'red-btn',   // 建全 msg38186：三個確認送出一律紅
             lines: [['日期', slashDate(dateVal)], ['餐別', '午餐']],
             onOk: function() { sendMeal(dateVal, dateObj, statusDiv); }
         });
