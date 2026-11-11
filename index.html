@@ -68,6 +68,10 @@
         .modal-line { font-size: 14px; color: #333; margin: 0 0 8px 0; line-height: 1.5; word-break: break-all; }
         .modal-line b { color: #999; font-weight: 500; font-size: 12px; display: block; }
         .modal-actions { display: flex; gap: 12px; margin-top: 18px; }
+        .modal-warn { font-size: 14px; color: #d62828; font-weight: 700; margin: 4px 0 8px 0; line-height: 1.5; }
+        .modal-input-label { font-size: 12px; color: #999; display: block; margin: 6px 0 6px 0; }
+        .modal-box textarea { width: 100%; box-sizing: border-box; min-height: 80px; padding: 10px; font-size: 16px; border: 1.5px solid #ddd; border-radius: 10px; font-family: inherit; }
+        .modal-input-err { color: #d62828; font-size: 13px; margin-top: 6px; }
         /* 錯誤／提示框（建全 msg38214/38216）：取代 window.alert —— 原生框上面會印「posiloop.github.io 顯示」，字也小 */
         .alert-mask { z-index: 2100; }
         /* 沒填的欄位反紅（建全 msg38219）：框變紅、標題變紅並加「請填寫」，改了那一欄就消失 */
@@ -242,11 +246,6 @@
         </div>
         <div id="review-body"></div>
         <div id="review-actions" class="hidden">
-            <div class="field">
-                <label class="field-label" for="review-reason">退回原因（退回必填）</label>
-                <textarea id="review-reason" placeholder="例：時段與排班不符，請重新申請"></textarea>
-            </div>
-            <div id="review-err" class="review-err"></div>
             <div class="btn-row">
                 <button class="red-btn" onclick="startReview('退回')">退回</button>
                 <button class="green-btn" onclick="startReview('通過')">通過</button>
@@ -503,6 +502,21 @@
             d.appendChild(b); d.appendChild(document.createTextNode(l[1]));
             box.appendChild(d);
         });
+        if (opts.warn) {                  // 紅字提醒（建全 msg38236：加班確認「請確認加班時數已扣除休息時間」）
+            var w = document.createElement('div'); w.className = 'modal-warn'; w.textContent = opts.warn;
+            box.appendChild(w);
+        }
+        // opts.input = { label, placeholder, emptyMsg }：必填輸入框（建全 msg38236：按退回才跳視窗輸入原因，沒填紅字、填了才能確認）
+        var inp = null, inpErr = null;
+        if (opts.input) {
+            var il = document.createElement('label'); il.className = 'modal-input-label'; il.textContent = opts.input.label;
+            inp = document.createElement('textarea'); inp.placeholder = opts.input.placeholder || '';
+            inpErr = document.createElement('div'); inpErr.className = 'modal-input-err';
+            inp.addEventListener('input', function() {
+                if (inp.value.trim()) { inp.classList.remove('field-err'); inpErr.textContent = ''; }
+            });
+            box.appendChild(il); box.appendChild(inp); box.appendChild(inpErr);
+        }
         var acts = document.createElement('div'); acts.className = 'modal-actions';
         var no = document.createElement('button'); no.type = 'button'; no.className = 'gray-btn'; no.textContent = '取消';
         var ok = document.createElement('button'); ok.type = 'button'; ok.className = opts.okClass || 'green-btn'; ok.textContent = opts.okText || '確認送出';
@@ -511,9 +525,16 @@
         pushLayer(function() { if (mask.parentNode) mask.parentNode.removeChild(mask); });
         no.addEventListener('click', popLayer);
         ok.addEventListener('click', function() {
+            var val = inp ? inp.value.trim() : undefined;
+            if (inp && !val) {            // 沒填：紅框＋紅字，視窗不關
+                inp.classList.add('field-err');
+                inpErr.textContent = opts.input.emptyMsg || '請填寫';
+                inp.focus();
+                return;
+            }
             ok.disabled = true;           // 連點不會送兩次
             popLayer();
-            opts.onOk();
+            opts.onOk(val);
         });
     }
 
@@ -1156,8 +1177,6 @@
         } else {
             reviewLines(q).forEach(function(r){ appendReviewLine(body, r, q.t); });
         }
-        document.getElementById('review-reason').value = '';
-        document.getElementById('review-err').innerText = '';
         document.getElementById('review-actions').classList.remove('hidden');
     }
     function markDot(i) {
@@ -1176,23 +1195,15 @@
 
     function startReview(result) {
         if (!REVIEW) return;
-        var reason = document.getElementById('review-reason').value.trim();
-        var err = document.getElementById('review-err');
-        if (result === '退回' && !reason) {
-            err.innerText = '退回一定要填寫原因。';
-            flagMissing([['退回原因', 'review-reason']]);
-            document.getElementById('review-reason').focus();
-            return;
-        }
-        err.innerText = '';
         var statusDiv = document.getElementById('review-status');
         if (!canSend(statusDiv, '審核')) return;
         var lines = [['審核內容', reviewSummary(REVIEW.q)], ['結果', result]];
-        if (result === '退回') lines.push(['退回原因', reason]);
+        // 建全 msg38236：退回原因不放在頁面上，按「退回」才在確認視窗裡輸入；沒填紅字、填了才能確認
         showConfirm({
             title: '確認' + result + '這筆申請？', okText: '確認' + result,
             okClass: result === '通過' ? 'green-btn' : 'red-btn', lines: lines,
-            onOk: function() { sendReview(result, reason, statusDiv); }
+            input: result === '退回' ? { label: '退回原因（必填）', placeholder: '例：時段與排班不符，請重新申請', emptyMsg: '請填寫退回原因' } : null,
+            onOk: function(reason) { sendReview(result, reason || '', statusDiv); }
         });
     }
 
@@ -1475,9 +1486,12 @@
         var startText = slashDate(dateVal) + ' ' + startVal;
         var endText = slashDate(endIso) + ' ' + endVal + (overnight ? '（跨日）' : '');
         var startObj = new Date(dateVal + 'T' + startVal + ':00+08:00');
+        var endObj = new Date(endIso + 'T' + endVal + ':00+08:00');
+        var otHours = Math.round((endObj - startObj) / 360000) / 10;   // 建全 msg38236：顯示總時數 2、2.5（分鐘只有 00／30）
         showConfirm({
             title: '確認送出加班申請？', okText: '確認送出', okClass: 'red-btn',   // 建全 msg38186：三個確認送出一律紅
-            lines: [['加班開始', startText], ['加班結束', endText], ['原因', reasonVal]],
+            lines: [['加班開始', startText], ['加班結束', endText], ['加班總時數', otHours + ' 小時'], ['原因', reasonVal]],
+            warn: '請確認加班時數已扣除休息時間',
             onOk: function() { sendOt(dateVal, overnight, startVal, endVal, reasonVal, endIso, startText, endText, startObj, statusDiv); }
         });
     }
