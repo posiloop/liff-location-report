@@ -14,19 +14,22 @@
         h2 { margin: 0 0 8px 0; color: #06C755; }
         p { font-size: 14px; color: #666; margin: 0 0 12px 0; line-height: 1.5; }
         .btn-row { display: flex; gap: 12px; }
-        button { flex: 1; padding: 15px; font-size: 16px; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; transition: background 0.2s; background-color: #06C755; }
-        button:active { background-color: #05a647; }
+        /* 右下硬陰影（建全 2026-11-11 msg38179 ④）：不模糊、顏色＝按鈕色的深色；按下去往右下沉 */
+        button { flex: 1; padding: 15px; font-size: 16px; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; transition: background 0.2s, transform 0.05s, box-shadow 0.05s; background-color: #06C755; --sh: #037a34; box-shadow: 3px 3px 0 var(--sh); }
+        button:active { background-color: #05a647; transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--sh); }
+        /* 誤餐資格要等 getProfile 才知道 ⇒ 按鈕先佔位不顯示，身分確定後一次全亮（建全 msg38179 ③：不要先兩顆再擠出第三顆） */
+        #main-buttons.pending { visibility: hidden; }
         /* 第二排：補卡（藍）｜誤餐（紫，只開給指定人）｜加班（紅）— 建全 2026-11-11 msg38152 */
         .action-row { display: flex; gap: 12px; margin-top: 12px; justify-content: center; }
         .action-row button { flex: 0 1 calc(50% - 6px); }
         .action-row.three button { flex: 1; }
-        .makeup-btn { background-color: #2563eb; }
+        .makeup-btn { background-color: #2563eb; --sh: #1e3a8a; }
         .makeup-btn:active { background-color: #1d4ed8; }
-        .meal-btn { background-color: #7c3aed; }
+        .meal-btn { background-color: #7c3aed; --sh: #4c1d95; }
         .meal-btn:active { background-color: #6d28d9; }
-        .ot-btn { background-color: #d62828; }
+        .ot-btn { background-color: #d62828; --sh: #7f1414; }
         .ot-btn:active { background-color: #b51d1d; }
-        .meal-submit { background-color: #7c3aed; margin-top: 4px; }
+        .meal-submit { background-color: #7c3aed; --sh: #4c1d95; margin-top: 4px; }
         .meal-submit:active { background-color: #6d28d9; }
         .inline-check { display: flex; align-items: center; gap: 6px; font-size: 15px; color: #333; white-space: nowrap; }
         .inline-check input { width: 20px; height: 20px; margin: 0; }
@@ -40,7 +43,7 @@
         .hidden { display: none; }
         .form-header { display: flex; align-items: center; margin: 0 0 16px 0; position: relative; min-height: 32px; }
         .back-btn { position: absolute; left: 0; background: transparent; color: #06C755; border: none; padding: 0; font-size: 24px; cursor: pointer; width: auto; flex: none; font-weight: normal; box-shadow: none; }
-        .back-btn:active { background: transparent; color: #05a647; }
+        .back-btn:active { background: transparent; color: #05a647; box-shadow: none; transform: none; }
         .form-title { margin: 0 auto; color: #000000; font-weight: 700; font-size: 20px; }
         .field { text-align: left; margin: 0 0 14px 0; }
         .field-label { display: block; font-size: 13px; color: #666; margin: 0 0 6px 2px; font-weight: 500; }
@@ -52,10 +55,28 @@
         .time-wheels select:focus { outline: none; border-color: #06C755; }
         .time-colon { font-size: 18px; font-weight: 600; color: #666; }
         .status-toggle { display: flex; gap: 10px; }
-        .status-toggle button { background-color: #f0f0f0; color: #333; border: 1.5px solid #ddd; }
-        .status-toggle button.selected { background-color: #06C755; color: white; border-color: #06C755; }
-        .submit-btn { background-color: #d62828; margin-top: 4px; }
+        .status-toggle button { background-color: #f0f0f0; color: #333; border: 1.5px solid #ddd; --sh: #bbbbbb; }
+        .status-toggle button.selected { background-color: #06C755; color: white; border-color: #06C755; --sh: #037a34; }
+        .submit-btn { background-color: #d62828; --sh: #7f1414; margin-top: 4px; }
         .submit-btn:active { background-color: #b51d1d; }
+        .gray-btn { background-color: #e5e5ea; color: #333; --sh: #a1a1aa; }
+        .gray-btn:active { background-color: #d4d4d8; }
+        .green-btn { background-color: #06C755; --sh: #037a34; }
+        .red-btn { background-color: #d62828; --sh: #7f1414; }
+        .red-btn:active { background-color: #b51d1d; }
+
+        /* --- 送出前確認視窗（建全 msg38179 ⑥；不用 window.confirm，LINE 內建瀏覽器會卡住）--- */
+        .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1500; display: flex; align-items: center; justify-content: center; padding: 24px; }
+        .modal-box { background: #fff; border-radius: 18px; padding: 22px 20px; max-width: 340px; width: 100%; box-sizing: border-box; text-align: left; box-shadow: 0 12px 48px rgba(0,0,0,.3); }
+        .modal-title { font-size: 18px; font-weight: 700; color: #000; text-align: center; margin-bottom: 14px; }
+        .modal-line { font-size: 14px; color: #333; margin: 0 0 8px 0; line-height: 1.5; word-break: break-all; }
+        .modal-line b { color: #999; font-weight: 500; font-size: 12px; display: block; }
+        .modal-actions { display: flex; gap: 12px; margin-top: 18px; }
+
+        /* --- 主管審核頁（建全 msg38179 ⑦）--- */
+        .review-line { text-align: left; font-size: 15px; color: #000; margin: 0 0 12px 0; line-height: 1.5; word-break: break-all; }
+        .review-line b { display: block; font-size: 12px; color: #999; font-weight: 500; }
+        .review-err { color: #d62828; font-size: 13px; text-align: left; margin: -6px 0 10px 2px; min-height: 0; }
 
         /* --- 定位等待轉圈（建全 2026-09-08 msg 23217：「等待時間像死機一樣沒動靜」）--- */
         .spinner { width: 24px; height: 24px; margin: 14px auto 0; border: 3px solid #e8e8e8;
@@ -70,6 +91,7 @@
         <h2>📍 AI 定位打卡</h2>
         <p style="margin: 0 0 4px 0;">點擊下方按鈕，系統將自動獲取您當前的真實 GPS 座標與時間，並傳送至對話框中。</p>
         <p style="color: #d62828; font-weight: bold; margin: 0 0 14px 0;">※ 點擊後即傳送定位資訊，無法收回!!! ※</p>
+        <div id="main-buttons" class="pending">
         <div class="btn-row">
             <button onclick="getAndShareLocation('上班')">上班</button>
             <button onclick="getAndShareLocation('下班')">下班</button>
@@ -79,6 +101,7 @@
             <button class="meal-btn hidden" id="meal-btn" onclick="showMealForm()">誤餐</button>
             <button class="ot-btn" onclick="showOtForm()">加班</button>
         </div>
+        </div>
         <div id="spinner" class="spinner hidden"></div>
         <div id="status">正在初始化 LINE LIFF...</div>
     </div>
@@ -86,7 +109,7 @@
     <!-- === Makeup Check-in Form View === -->
     <div id="checkin-form-view" class="card hidden">
         <div class="form-header">
-            <button class="back-btn" onclick="hideCheckinForm()" aria-label="返回">←</button>
+            <button class="back-btn" onclick="backToMain()" aria-label="返回">←</button>
             <div class="form-title">員工補卡</div>
         </div>
 
@@ -134,10 +157,6 @@
             <div class="form-title">加班申請</div>
         </div>
         <div class="field">
-            <label class="field-label">狀態</label>
-            <div class="fixed-value">加班申請</div>
-        </div>
-        <div class="field">
             <label class="field-label" for="ot-date">日期</label>
             <div class="date-row">
                 <input type="date" id="ot-date" onchange="syncOtNextDay()">
@@ -162,7 +181,7 @@
         </div>
         <div class="field">
             <label class="field-label" for="ot-reason">原因</label>
-            <textarea id="ot-reason" placeholder="例：備料趕單、活動支援"></textarea>
+            <textarea id="ot-reason" placeholder="例：輪值晚班、人力支援、額外任務"></textarea>
         </div>
         <button class="submit-btn" onclick="submitOt()">確認申請加班</button>
         <div id="ot-status" style="margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap;"></div>
@@ -175,10 +194,6 @@
             <div class="form-title">誤餐申請</div>
         </div>
         <div class="field">
-            <label class="field-label">狀態</label>
-            <div class="fixed-value">誤餐申請</div>
-        </div>
-        <div class="field">
             <label class="field-label" for="meal-date">日期</label>
             <input type="date" id="meal-date">
         </div>
@@ -188,6 +203,26 @@
         </div>
         <button class="meal-submit" onclick="submitMeal()">確認申請誤餐</button>
         <div id="meal-status" style="margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap;"></div>
+    </div>
+
+    <!-- === 主管審核（建全 2026-11-11 msg38179 ⑦）：從申請卡片的「主管審核」按鈕開進來 === -->
+    <div id="review-view" class="card hidden">
+        <div class="form-header">
+            <div class="form-title" id="review-title">主管審核</div>
+        </div>
+        <div id="review-body"></div>
+        <div id="review-actions" class="hidden">
+            <div class="field">
+                <label class="field-label" for="review-reason">退回原因（退回必填）</label>
+                <textarea id="review-reason" placeholder="例：時段與排班不符，請重新申請"></textarea>
+            </div>
+            <div id="review-err" class="review-err"></div>
+            <div class="btn-row">
+                <button class="green-btn" onclick="startReview('通過')">通過</button>
+                <button class="red-btn" onclick="startReview('退回')">退回</button>
+            </div>
+        </div>
+        <div id="review-status" style="margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap;"></div>
     </div>
 
 <script>
@@ -320,12 +355,18 @@
     document.addEventListener("DOMContentLoaded", function() {
         buildTimeWheels();   // 補卡時間旋鈕（24 小時制），與 LIFF init 無關，先建好
         ['ot-start', 'ot-end'].forEach(function(p){ fillWheel(p + '-hour', 24); fillWheel(p + '-min', 60); });
+        // 按鈕在身分確定前不顯示（防誤餐按鈕晚到擠版面）；init 卡死時 8 秒後照樣放出來，不能讓人永遠看不到按鈕
+        var revealTimer = setTimeout(revealButtons, 8000);
         if (typeof liff === 'undefined') {
+            revealButtons();
             document.getElementById('status').innerText = "❌ LIFF SDK 沒載入 (script 失敗)";
             return;
         }
         liff.init({ liffId: '2010233112-czPa88PE' })
             .then(function() {
+                // 審核連結（?review=…，從 liff.line.me 進來時包在 liff.state 裡）⇒ 走審核頁，不顯示打卡畫面
+                var reviewRaw = readUrlParam('review');
+                if (reviewRaw) { clearTimeout(revealTimer); enterReview(reviewRaw); return; }
                 document.getElementById('status').innerText = TEST_MODE
                     ? "⚠️ 測試版：按了不會記錄，也不會傳卡片到聊天室。"
                     : "LINE 元件載入成功，準備就緒。";
@@ -337,14 +378,70 @@
                             document.getElementById('meal-btn').classList.remove('hidden');
                             document.getElementById('action-row').classList.add('three');
                         }
-                    }).catch(function(){});
+                        revealButtons();
+                    }).catch(function(){ revealButtons(); });
+                } else {
+                    revealButtons();
                 }
             })
             .catch(function(err) {
+                revealButtons();
                 document.getElementById('status').innerText =
                     "初始化失敗: " + (err && err.message ? err.message : JSON.stringify(err));
             });
     });
+
+    function revealButtons() { document.getElementById('main-buttons').classList.remove('pending'); }
+
+    // ?name=… 或 liff.state 裡的 ?name=…（同 TEST_MODE 的兩處都要看）
+    function readUrlParam(name) {
+        var re = new RegExp('[?&]' + name + '=([^&#]*)');
+        var q = location.search || '';
+        var m = q.match(re);
+        if (m) return decodeURIComponent(m[1]);
+        var st = q.match(/[?&]liff\.state=([^&]*)/);
+        if (st) { m = decodeURIComponent(st[1]).match(re); if (m) return decodeURIComponent(m[1]); }
+        return '';
+    }
+
+    // ===== 原生返回鍵（建全 msg38179 ⑥）=====
+    // 開表單／確認視窗時 pushState 一層；Android 返回鍵／history.back ⇒ popstate 關最上面那層，
+    // 不會直接把 LIFF 關掉。畫面上的「←」「取消」也走 history.back，兩條路同一個出口。
+    var navStack = [];
+    function pushLayer(closeFn) { navStack.push(closeFn); history.pushState({ layer: navStack.length }, ''); }
+    function popLayer() { if (navStack.length) history.back(); }
+    window.addEventListener('popstate', function() { var f = navStack.pop(); if (f) f(); });
+
+    // 送出前確認視窗（不用 window.confirm：LINE 內建瀏覽器的原生對話框會卡住畫面）
+    // lines: [[標籤, 值], ...]
+    function showConfirm(opts) {
+        var mask = document.createElement('div');
+        mask.className = 'modal-mask';
+        var box = document.createElement('div');
+        box.className = 'modal-box';
+        var t = document.createElement('div');
+        t.className = 'modal-title';
+        t.textContent = opts.title;
+        box.appendChild(t);
+        (opts.lines || []).forEach(function(l) {
+            var d = document.createElement('div'); d.className = 'modal-line';
+            var b = document.createElement('b'); b.textContent = l[0];
+            d.appendChild(b); d.appendChild(document.createTextNode(l[1]));
+            box.appendChild(d);
+        });
+        var acts = document.createElement('div'); acts.className = 'modal-actions';
+        var no = document.createElement('button'); no.type = 'button'; no.className = 'gray-btn'; no.textContent = '取消';
+        var ok = document.createElement('button'); ok.type = 'button'; ok.className = opts.okClass || 'green-btn'; ok.textContent = opts.okText || '確認送出';
+        acts.appendChild(no); acts.appendChild(ok); box.appendChild(acts); mask.appendChild(box);
+        document.body.appendChild(mask);
+        pushLayer(function() { if (mask.parentNode) mask.parentNode.removeChild(mask); });
+        no.addEventListener('click', popLayer);
+        ok.addEventListener('click', function() {
+            ok.disabled = true;           // 連點不會送兩次
+            popLayer();
+            opts.onOk();
+        });
+    }
 
     // ===== Flex (定位打卡) =====
     function buildFlexBubble(profile, status, lat, lng, time) {
@@ -416,17 +513,17 @@
         };
     }
 
-    // ===== Flex (補卡 紅色版本) =====
-    function buildMakeupFlexBubble(profile, status, dateTimeText, reason) {
+    // ===== Flex (補卡) — 建全 msg38179 ⑤：標題「補卡申請」、header 改成補卡按鈕同色藍 =====
+    function buildMakeupFlexBubble(profile, status, dateTimeText, reason, reviewUri) {
         var displayName = profile && profile.displayName ? profile.displayName : '未取得';
 
         return {
             type: 'bubble',
             size: 'kilo',
             header: {
-                type: 'box', layout: 'vertical', backgroundColor: '#d62828', paddingAll: 'md',
+                type: 'box', layout: 'vertical', backgroundColor: '#2563eb', paddingAll: 'md',
                 contents: [
-                    { type: 'text', text: '📝 員工補卡紀錄', color: '#FFFFFF', weight: 'bold', size: 'lg', align: 'center' },
+                    { type: 'text', text: '📝 補卡申請', color: '#FFFFFF', weight: 'bold', size: 'lg', align: 'center' },
                     { type: 'text', text: 'LIFF 系統認證', color: '#FFFFFFCC', size: 'xxs', align: 'center', margin: 'sm' }
                 ]
             },
@@ -470,7 +567,8 @@
                         ]
                     }
                 ]
-            }
+            },
+            footer: reviewFooter(reviewUri)
         };
     }
 
@@ -614,14 +712,7 @@
         document.getElementById('makeup-time').value = '';
         document.getElementById('makeup-reason').value = '';
         document.getElementById('makeup-status').innerText = '';
-        // switch view
-        document.getElementById('main-view').classList.add('hidden');
-        document.getElementById('checkin-form-view').classList.remove('hidden');
-    }
-
-    function hideCheckinForm() {
-        document.getElementById('checkin-form-view').classList.add('hidden');
-        document.getElementById('main-view').classList.remove('hidden');
+        openForm('checkin-form-view');
     }
 
     // === 台北時間 24 小時制格式化（建全 2026-08-12「一起改」：正常上下班打卡也不要上午/下午）===
@@ -735,13 +826,23 @@
         var _dp = dateVal.split('-');
         var dateTimeText = Number(_dp[0]) + '/' + Number(_dp[1]) + '/' + Number(_dp[2]) +
                            ' ' + timeVal + ':00';
+        var st = makeupStatus;
 
+        showConfirm({
+            title: '確認送出補卡？', okText: '確認送出', okClass: 'makeup-btn',
+            lines: [['狀態', st], ['時間', dateTimeText], ['原因', reasonVal]],
+            onOk: function() { sendMakeup(st, dateVal, timeVal, dateObj, dateTimeText, reasonVal, statusDiv); }
+        });
+    }
+
+    function sendMakeup(makeupStatus, dateVal, timeVal, dateObj, dateTimeText, reasonVal, statusDiv) {
         statusDiv.innerText = "正在傳送補卡 Flex 至 LINE...";
 
         liff.getProfile().then(function(profile) {
-            var altText = '【員工補卡紀錄】' + profile.displayName + ' / ' + makeupStatus +
+            var altText = '【補卡申請】' + profile.displayName + ' / ' + makeupStatus +
                           ' / ' + dateTimeText + ' / 原因：' + reasonVal;
-            var bubble = buildMakeupFlexBubble(profile, makeupStatus, dateTimeText, reasonVal);
+            var bubble = buildMakeupFlexBubble(profile, makeupStatus, dateTimeText, reasonVal,
+                reviewUriFor(profile, '補卡', dateVal, makeupStatus + ' ' + timeVal, reasonVal));
             // 同時：背景送一份進 Sheet
             sendToSheet({
                 action: 'submit',
@@ -781,6 +882,178 @@
         'Uaa14b6d4fc1eae259e936af371c96ddd': '盧建全'
     };
 
+    // ===== 主管審核（建全 2026-11-11 msg38179 ⑦⑧）=====
+    // 申請卡片（補卡／誤餐／加班）下方的紅色「主管審核」按鈕＝uri，開回這支 LIFF（?review=<base64url JSON>）。
+    // 沒有 webhook 後端 ⇒ 申請內容整包放在網址裡；審核人身分在開啟當下用 getProfile 的 userId 判。
+    // 名單一律用 LINE userId（顯示名會改）。
+    var REVIEWERS = {                       // 可以按 通過／退回 的人
+        'Uc0b3e65aafa5165d50084ba0c4a085c5': '林軒徹'
+    };
+    var REVIEWABLE_APPLICANTS = {           // 目前只開放審核這些人的申請；不在名單＝卡片不出審核按鈕
+        'U05338b14b3d540e27dc9a63e5b9e2041': '王宏文'
+    };
+    var LIFF_URL = 'https://liff.line.me/2010233112-czPa88PE';
+    var FLEX_URI_MAX = 1000;                // LINE Flex uri action 上限
+
+    function b64uEnc(str) {
+        return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    function b64uDec(str) {
+        var b = str.replace(/-/g, '+').replace(/_/g, '/');
+        while (b.length % 4) b += '=';
+        return decodeURIComponent(escape(atob(b)));
+    }
+    function newReqId() {
+        return 'R' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 1296).toString(36).toUpperCase();
+    }
+    // 申請人不在 REVIEWABLE_APPLICANTS ⇒ 回 ''（卡片不加按鈕）
+    // 原因太長讓網址超過上限 ⇒ 截短原因並標 rc=1，審核頁會明講「已截斷，全文看申請卡片」（不靜默截斷）
+    function reviewUriFor(profile, type, dateIso, timeText, reason) {
+        if (!profile || !REVIEWABLE_APPLICANTS[profile.userId]) return '';
+        var q = { t: type, n: profile.displayName || '', u: profile.userId, d: dateIso, s: timeText, r: reason || '', i: newReqId() };
+        var uri = LIFF_URL + '?review=' + b64uEnc(JSON.stringify(q));
+        while (uri.length > FLEX_URI_MAX && q.r) {
+            q.r = q.r.slice(0, Math.max(0, q.r.length - 10)); q.rc = 1;
+            uri = LIFF_URL + '?review=' + b64uEnc(JSON.stringify(q));
+        }
+        return uri.length > FLEX_URI_MAX ? '' : uri;
+    }
+    function reviewFooter(uri) {
+        if (!uri) return undefined;
+        return { type: 'box', layout: 'vertical', contents: [
+            { type: 'button', style: 'primary', color: '#d62828', height: 'sm',
+              action: { type: 'uri', label: '主管審核', uri: uri } } ] };
+    }
+    // 「王宏文 11/12 加班 18:00–21:00」
+    function reviewSummary(q) {
+        var p = q.d.split('-');
+        return q.n + ' ' + Number(p[1]) + '/' + Number(p[2]) + ' ' + q.t + ' ' + q.s;
+    }
+
+    var REVIEW = null;   // { q, profile }
+
+    function showReviewMessage(title, msg) {
+        showView('review-view');
+        document.getElementById('review-title').innerText = title;
+        document.getElementById('review-body').innerHTML = '';
+        var p = document.createElement('p'); p.style.cssText = 'font-size:15px;color:#333;margin:8px 0 18px 0;';
+        p.innerText = msg;
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'gray-btn'; b.style.width = '100%';
+        b.textContent = '返回 LINE 聊天室';
+        b.addEventListener('click', function() { try { liff.closeWindow(); } catch (e) {} });
+        document.getElementById('review-body').appendChild(p);
+        document.getElementById('review-body').appendChild(b);
+        document.getElementById('review-actions').classList.add('hidden');
+    }
+
+    function enterReview(raw) {
+        var q = null;
+        try { q = JSON.parse(b64uDec(raw)); } catch (e) {}
+        if (!q || !q.t || !q.u || !q.d || !q.i) { showReviewMessage('審核連結無效', '這個審核連結的內容讀不出來，請回到申請卡片重新點「主管審核」。'); return; }
+        if (!(liff.isLoggedIn && liff.isLoggedIn())) { showReviewMessage('⛔ 權限不足', '無法確認您的身分，請從 LINE 開啟。'); return; }
+        liff.getProfile().then(function(profile) {
+            if (!profile || !REVIEWERS[profile.userId]) { showReviewMessage('⛔ 權限不足', '您沒有審核權限。'); return; }
+            if (!REVIEWABLE_APPLICANTS[q.u]) { showReviewMessage('不在審核範圍', '目前沒有開放審核這位申請人的申請。'); return; }
+            REVIEW = { q: q, profile: profile };
+            showView('review-view');
+            document.getElementById('review-title').innerText = '主管審核' + (TEST_MODE ? '（測試版）' : '');
+            var body = document.getElementById('review-body');
+            body.innerHTML = '';
+            [['申請類型', q.t + '申請'], ['申請人', q.n], ['日期', slashDate(q.d)], ['時間', q.s],
+             ['原因', (q.r || '—') + (q.rc ? '（網址長度限制已截斷，全文見申請卡片）' : '')], ['申請編號', q.i]]
+                .forEach(function(r) {
+                    if (r[0] === '原因' && q.t === '誤餐') return;
+                    var d = document.createElement('div'); d.className = 'review-line';
+                    var b = document.createElement('b'); b.textContent = r[0];
+                    d.appendChild(b); d.appendChild(document.createTextNode(r[1]));
+                    body.appendChild(d);
+                });
+            document.getElementById('review-reason').value = '';
+            document.getElementById('review-err').innerText = '';
+            document.getElementById('review-actions').classList.remove('hidden');
+        }).catch(function() { showReviewMessage('⛔ 權限不足', '無法確認您的身分，請稍後再試。'); });
+    }
+
+    function startReview(result) {
+        if (!REVIEW) return;
+        var reason = document.getElementById('review-reason').value.trim();
+        var err = document.getElementById('review-err');
+        if (result === '退回' && !reason) {
+            err.innerText = '退回一定要填寫原因。';
+            document.getElementById('review-reason').focus();
+            return;
+        }
+        err.innerText = '';
+        var statusDiv = document.getElementById('review-status');
+        if (!canSend(statusDiv, '審核')) return;
+        var lines = [['審核內容', reviewSummary(REVIEW.q)], ['結果', result]];
+        if (result === '退回') lines.push(['退回原因', reason]);
+        showConfirm({
+            title: '確認' + result + '這筆申請？', okText: '確認' + result,
+            okClass: result === '通過' ? 'green-btn' : 'red-btn', lines: lines,
+            onOk: function() { sendReview(result, reason, statusDiv); }
+        });
+    }
+
+    function buildReviewResultBubble(q, result, reason, reviewer, timeText) {
+        var color = result === '通過' ? '#06C755' : '#d62828';
+        var rows = [['結果', result], ['審核內容', reviewSummary(q)]];
+        if (result === '退回') rows.push(['退回原因', reason]);
+        rows.push(['審核人', reviewer.displayName || '未取得'], ['審核人 LINE ID', reviewer.userId],
+                  ['審核時間', timeText], ['申請編號', q.i]);
+        return {
+            type: 'bubble', size: 'kilo',
+            header: { type: 'box', layout: 'vertical', backgroundColor: color, paddingAll: 'md', contents: [
+                { type: 'text', text: (result === '通過' ? '✅ 審核通過' : '❌ 審核退回'), color: '#FFFFFF', weight: 'bold', size: 'lg', align: 'center' },
+                { type: 'text', text: 'LIFF 系統認證', color: '#FFFFFFCC', size: 'xxs', align: 'center', margin: 'sm' } ] },
+            body: { type: 'box', layout: 'vertical', spacing: 'sm', contents: rows.map(function(r) {
+                return { type: 'box', layout: 'vertical', spacing: 'xs', contents: [
+                    { type: 'text', text: r[0], size: 'xs', color: '#999999' },
+                    { type: 'text', text: r[1], size: 'md', weight: 'bold', wrap: true,
+                      color: r[0] === '結果' ? color : '#000000' } ] };
+            }) }
+        };
+    }
+
+    function sendReview(result, reason, statusDiv) {
+        var q = REVIEW.q, reviewer = REVIEW.profile;
+        var timeText = fmtTaipei24(new Date());
+        var summary = reviewSummary(q);
+        var dateObj = new Date(q.d + 'T12:00:00+08:00');
+        statusDiv.innerText = '正在傳送審核結果至 LINE...';
+        // Sheet：沿用 submit（Apps Script 對任何 kind 照寫一列）。D/E＝申請人（這列跟著申請人的紀錄走），
+        //   動作＝審核通過／審核退回，動作日期＝申請的日期，動作時間欄放「內容｜審核人｜時間｜退回原因｜申請編號」。
+        //   punch_summary.py 不把這兩種列算成打卡或加班。
+        sendToSheet({
+            action: 'submit',
+            date: rocFromDate(new Date()).roc,
+            ym: rocFromDate(dateObj).ym,
+            displayName: q.n,
+            userId: q.u,
+            kind: '審核' + result,
+            actionDate: rocFromDate(dateObj).roc,
+            actionTime: q.t + ' ' + q.s + '｜審核人：' + (reviewer.displayName || '') + '（' + reviewer.userId + '）｜' + timeText +
+                        (result === '退回' ? '｜退回原因：' + reason : '') + '｜申請編號：' + q.i,
+            lat: 0, lng: 0,
+            makeup: false,
+            reviewer: reviewer.displayName || '', reviewerId: reviewer.userId, reqId: q.i, reqType: q.t, rejectReason: reason
+        });
+        var altText = '【審核' + result + '】' + summary + '（審核人：' + (reviewer.displayName || '') + '）' +
+                      (result === '退回' ? ' 原因：' + reason : '');
+        var bubble = buildReviewResultBubble(q, result, reason, reviewer, timeText);
+        var p = TEST_MODE ? Promise.resolve(alert('【測試版】沒有記錄\n' + altText))
+                          : liff.sendMessages([{ type: 'flex', altText: altText, contents: bubble }]);
+        p.then(function() {
+            statusDiv.innerText = '審核結果傳送成功';
+            document.getElementById('review-actions').classList.add('hidden');
+            showSuccessScreen();
+        }).catch(function(error) {
+            var msg = JSON.stringify(error, Object.getOwnPropertyNames(error || {}));
+            alert('LINE 傳送失敗，錯誤原因: ' + msg);
+            statusDiv.innerText = '傳送失敗: ' + msg;
+        });
+    }
+
     function fillWheel(id, n) {
         var s = document.getElementById(id);
         if (!s || s.options.length > 1) return;
@@ -799,11 +1072,13 @@
         document.getElementById(prefix + '-min').value = '';
     }
     function showView(id) {
-        ['main-view', 'checkin-form-view', 'ot-form-view', 'meal-form-view'].forEach(function(v){
+        ['main-view', 'checkin-form-view', 'ot-form-view', 'meal-form-view', 'review-view'].forEach(function(v){
             document.getElementById(v).classList.toggle('hidden', v !== id);
         });
     }
-    function backToMain() { showView('main-view'); }
+    // 表單頁也是一層歷史：返回鍵回主畫面，不是關掉 LIFF
+    function openForm(id) { showView(id); pushLayer(function(){ showView('main-view'); }); }
+    function backToMain() { if (navStack.length) popLayer(); else showView('main-view'); }
 
     function slashDate(iso) {          // '2026-11-12' → '2026/11/12'
         var p = iso.split('-');
@@ -822,7 +1097,7 @@
         document.getElementById('ot-reason').value = '';
         document.getElementById('ot-status').innerText = '';
         syncOtNextDay();
-        showView('ot-form-view');
+        openForm('ot-form-view');
     }
     // 勾「跨日」⇒ 加班結束旁邊自動帶出隔天日期
     function syncOtNextDay() {
@@ -836,7 +1111,7 @@
     function showMealForm() {
         document.getElementById('meal-date').value = '';
         document.getElementById('meal-status').innerText = '';
-        showView('meal-form-view');
+        openForm('meal-form-view');
     }
 
     // 送 Flex 前的共同檢查（同補卡）：一定要在 LINE 裡、要有傳訊權限
@@ -860,19 +1135,12 @@
         return true;
     }
 
-    function buildApplyFlexBubble(color, title, profile, status, rows) {
+    // 建全 msg38179 ②：誤餐／加班卡片不顯示「狀態」
+    function buildApplyFlexBubble(color, title, profile, rows, reviewUri) {
         var displayName = profile && profile.displayName ? profile.displayName : '未取得';
-        var body = [{
-            type: 'box', layout: 'horizontal', spacing: 'xxl',
-            contents: [
-                { type: 'box', layout: 'vertical', spacing: 'xs', flex: 1, contents: [
-                    { type: 'text', text: '申請人', size: 'xs', color: '#999999' },
-                    { type: 'text', text: displayName, size: 'md', weight: 'bold', wrap: true } ] },
-                { type: 'box', layout: 'vertical', spacing: 'xs', flex: 0, contents: [
-                    { type: 'text', text: '狀態', size: 'xs', color: '#999999' },
-                    { type: 'text', text: status, size: 'md', weight: 'bold', color: '#000000' } ] }
-            ]
-        }];
+        var body = [{ type: 'box', layout: 'vertical', spacing: 'xs', contents: [
+            { type: 'text', text: '申請人', size: 'xs', color: '#999999' },
+            { type: 'text', text: displayName, size: 'md', weight: 'bold', wrap: true } ] }];
         rows.forEach(function(r){
             body.push({ type: 'box', layout: 'vertical', spacing: 'xs', contents: [
                 { type: 'text', text: r[0], size: 'xs', color: '#999999' },
@@ -883,7 +1151,8 @@
             header: { type: 'box', layout: 'vertical', backgroundColor: color, paddingAll: 'md', contents: [
                 { type: 'text', text: title, color: '#FFFFFF', weight: 'bold', size: 'lg', align: 'center' },
                 { type: 'text', text: 'LIFF 系統認證', color: '#FFFFFFCC', size: 'xxs', align: 'center', margin: 'sm' } ] },
-            body: { type: 'box', layout: 'vertical', spacing: 'sm', contents: body }
+            body: { type: 'box', layout: 'vertical', spacing: 'sm', contents: body },
+            footer: reviewFooter(reviewUri)
         };
     }
 
@@ -915,12 +1184,21 @@
         var startText = slashDate(dateVal) + ' ' + startVal;
         var endText = slashDate(endIso) + ' ' + endVal + (overnight ? '（跨日）' : '');
         var startObj = new Date(dateVal + 'T' + startVal + ':00+08:00');
+        showConfirm({
+            title: '確認送出加班申請？', okText: '確認送出', okClass: 'ot-btn',
+            lines: [['加班開始', startText], ['加班結束', endText], ['原因', reasonVal]],
+            onOk: function() { sendOt(dateVal, overnight, startVal, endVal, reasonVal, endIso, startText, endText, startObj, statusDiv); }
+        });
+    }
+
+    function sendOt(dateVal, overnight, startVal, endVal, reasonVal, endIso, startText, endText, startObj, statusDiv) {
         statusDiv.innerText = '正在傳送加班申請至 LINE...';
 
         liff.getProfile().then(function(profile) {
             var altText = '【加班申請】' + profile.displayName + ' / ' + startText + ' ~ ' + endText + ' / 原因：' + reasonVal;
-            var bubble = buildApplyFlexBubble('#d62828', '⏰ 加班申請', profile, '加班申請',
-                [['加班開始', startText], ['加班結束', endText], ['原因', reasonVal]]);
+            var bubble = buildApplyFlexBubble('#d62828', '⏰ 加班申請', profile,
+                [['加班開始', startText], ['加班結束', endText], ['原因', reasonVal]],
+                reviewUriFor(profile, '加班', dateVal, startVal + '–' + (overnight ? '隔日' : '') + endVal, reasonVal));
             sendToSheet({
                 action: 'submit',
                 date: rocFromDate(new Date()).roc,
@@ -956,6 +1234,14 @@
         }
         if (!canSend(statusDiv, '誤餐申請')) return;
         var dateObj = new Date(dateVal + 'T12:00:00+08:00');
+        showConfirm({
+            title: '確認送出誤餐申請？', okText: '確認送出', okClass: 'meal-submit',
+            lines: [['日期', slashDate(dateVal)], ['餐別', '午餐']],
+            onOk: function() { sendMeal(dateVal, dateObj, statusDiv); }
+        });
+    }
+
+    function sendMeal(dateVal, dateObj, statusDiv) {
         statusDiv.innerText = '正在傳送誤餐申請至 LINE...';
 
         liff.getProfile().then(function(profile) {
@@ -965,8 +1251,9 @@
                 return null;
             }
             var altText = '【誤餐申請】' + profile.displayName + ' / ' + slashDate(dateVal) + ' / 午餐';
-            var bubble = buildApplyFlexBubble('#7c3aed', '🍱 誤餐申請', profile, '誤餐申請',
-                [['日期', slashDate(dateVal)], ['餐別', '午餐']]);
+            var bubble = buildApplyFlexBubble('#7c3aed', '🍱 誤餐申請', profile,
+                [['日期', slashDate(dateVal)], ['餐別', '午餐']],
+                reviewUriFor(profile, '誤餐', dateVal, '午餐', ''));
             sendToSheet({
                 action: 'submit',
                 date: rocFromDate(new Date()).roc,
@@ -1006,7 +1293,7 @@
                     '手動往下拉到底就能看到' +
                 '</div>' +
                 '<button type="button" id="closeSuccessBtn" ' +
-                    'style="width:100%;padding:14px;background:#06C755;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(6,199,85,.25)">' +
+                    'style="width:100%;padding:14px;background:#06C755;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;box-shadow:3px 3px 0 #037a34">' +
                     '返回 LINE 聊天室' +
                 '</button>' +
             '</div>';
