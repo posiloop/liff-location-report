@@ -70,6 +70,11 @@
         .modal-actions { display: flex; gap: 12px; margin-top: 18px; }
         /* 錯誤／提示框（建全 msg38214/38216）：取代 window.alert —— 原生框上面會印「posiloop.github.io 顯示」，字也小 */
         .alert-mask { z-index: 2100; }
+        /* 沒填的欄位反紅（建全 msg38219）：框變紅、標題變紅並加「請填寫」，改了那一欄就消失 */
+        .field-has-err .field-label { color: #d62828; font-weight: 700; }
+        .field-has-err .field-label::after { content: '（請填寫）'; font-weight: 700; }
+        .field-err { border-color: #d62828 !important; background-color: #fff1f1 !important; }
+        .status-toggle.field-err { outline: 2px solid #d62828; outline-offset: 4px; border-radius: 12px; background-color: transparent !important; }
         .alert-msg { font-size: 18px; line-height: 1.6; color: #000; white-space: pre-wrap; word-break: break-all; text-align: left; margin: 4px 0 0 0; }
 
         /* --- 主管審核頁（建全 msg38179 ⑦）--- */
@@ -139,7 +144,7 @@
 
         <div class="field">
             <label class="field-label">狀態</label>
-            <div class="btn-row status-toggle">
+            <div class="btn-row status-toggle" id="makeup-status-row">
                 <button type="button" id="makeup-status-in" onclick="selectMakeupStatus('上班')">上班</button>
                 <button type="button" id="makeup-status-out" onclick="selectMakeupStatus('下班')">下班</button>
             </div>
@@ -231,8 +236,8 @@
             </div>
             <div id="review-err" class="review-err"></div>
             <div class="btn-row">
-                <button class="green-btn" onclick="startReview('通過')">通過</button>
                 <button class="red-btn" onclick="startReview('退回')">退回</button>
+                <button class="green-btn" onclick="startReview('通過')">通過</button>
             </div>
         </div>
         <div id="review-status" style="margin-top: 12px; font-size: 13px; color: #999; white-space: pre-wrap;"></div>
@@ -785,6 +790,7 @@
 
     function selectMakeupStatus(s) {
         makeupStatus = s;
+        clearFieldErr(document.getElementById('makeup-status-row'));
         var inBtn = document.getElementById('makeup-status-in');
         var outBtn = document.getElementById('makeup-status-out');
         if (s === '上班') {
@@ -804,16 +810,12 @@
 
         // 驗證 4 個欄位
         var missing = [];
-        if (!makeupStatus) missing.push('狀態');
-        if (!dateVal) missing.push('日期');
-        if (!timeVal) missing.push('時間');
-        if (!reasonVal) missing.push('原因');
+        if (!makeupStatus) missing.push(['狀態', 'makeup-status-row']);
+        if (!dateVal) missing.push(['日期', 'makeup-date']);
+        if (!timeVal) missing.push(['時間', 'makeup-tbtn']);
+        if (!reasonVal) missing.push(['原因', 'makeup-reason']);
 
-        if (missing.length > 0) {
-            showAlert('資訊尚未填寫完成，請補上：\n・' + missing.join('\n・'));
-            statusDiv.innerText = '尚未填完：' + missing.join('、');
-            return;
-        }
+        if (missing.length > 0) { flagMissing(missing, statusDiv); return; }
 
         if (typeof liff === 'undefined' || !liff.isInClient || !liff.isInClient()) {
             statusDiv.innerText = '非 LINE 內開啟，無法送 Flex。';
@@ -950,6 +952,7 @@
     }
 
     var REVIEW = null;   // { q, profile }
+    var TYPE_COLOR = { '補卡': '#2563eb', '誤餐': '#7c3aed', '加班': '#d62828' };
 
     // 審核連結一打開先蓋這個（建全 msg38211）：只有「身份驗證中」＋轉圈，不露打卡畫面
     function showReviewLoading() {
@@ -994,7 +997,15 @@
                     if (r[0] === '原因' && q.t === '誤餐') return;
                     var d = document.createElement('div'); d.className = 'review-line';
                     var b = document.createElement('b'); b.textContent = r[0];
-                    d.appendChild(b); d.appendChild(document.createTextNode(r[1]));
+                    d.appendChild(b);
+                    if (r[0] === '申請類型' && TYPE_COLOR[q.t]) {   // 建全 msg38219：補卡藍／誤餐紫／加班紅（跟主畫面按鈕同色）
+                        var v = document.createElement('span');
+                        v.style.cssText = 'color:' + TYPE_COLOR[q.t] + ';font-weight:700;';
+                        v.textContent = r[1];
+                        d.appendChild(v);
+                    } else {
+                        d.appendChild(document.createTextNode(r[1]));
+                    }
                     body.appendChild(d);
                 });
             document.getElementById('review-reason').value = '';
@@ -1009,6 +1020,7 @@
         var err = document.getElementById('review-err');
         if (result === '退回' && !reason) {
             err.innerText = '退回一定要填寫原因。';
+            flagMissing([['退回原因', 'review-reason']]);
             document.getElementById('review-reason').focus();
             return;
         }
@@ -1093,18 +1105,33 @@
     // === 滑動式時間選擇（建全 msg38211，照業績回報 LIFF：時 00–23、分只有 00／30）===
     // 為什麼不用 <input type="time">：12／24 小時制由手機系統地區決定，網頁指定不了（建全 2026-08-12）。
     // 開著時也是一層歷史：返回鍵只關選擇器（建全 msg38179 ⑥）。
-    var TP_ROW = 40, _tpTarget = null;
+    // 畫面矮（LIFF compact/tall 只佔半屏～八成）⇒ 只露 3 列、每列 36px，整個框約 230px；夠高才露 5 列。
+    var TP_ROW = 40, TP_PAD = 2, _tpTarget = null;
+    function tpLayout() {
+        var short = window.innerHeight < 560;
+        TP_ROW = short ? 36 : 40; TP_PAD = short ? 1 : 2;
+        var vis = TP_PAD * 2 + 1, colH = vis * TP_ROW;
+        document.querySelectorAll('.tp-col').forEach(function(c){ c.style.height = colH + 'px'; });
+        document.querySelector('.tp-cols').style.height = (24 + colH + 8) + 'px';
+        var hl = document.querySelector('.tp-highlight');
+        hl.style.top = (24 + 8 + TP_PAD * TP_ROW) + 'px'; hl.style.height = TP_ROW + 'px';
+        document.querySelector('.tp-title').style.padding = short ? '10px' : '16px';
+        document.querySelectorAll('.tp-actions button').forEach(function(b){ b.style.padding = short ? '10px' : '14px'; });
+    }
     function openTimePicker(btn) {
         _tpTarget = btn;
+        tpLayout();
         var cur = (btn.dataset.val || btn.dataset.def || '09:00').split(':');
         var curH = parseInt(cur[0], 10) || 0, curM = parseInt(cur[1], 10) || 0;
         var hours = document.getElementById('tpHours'), minutes = document.getElementById('tpMinutes');
-        var pad = '<div class="tp-item"></div><div class="tp-item"></div>';
+        var pad = new Array(TP_PAD + 1).join('<div class="tp-item"></div>');
         var hh = '', mm = '';
         for (var h = 0; h < 24; h++) hh += '<div class="tp-item" data-v="' + h + '">' + (h < 10 ? '0' : '') + h + '</div>';
         [0, 30].forEach(function(m){ mm += '<div class="tp-item" data-v="' + m + '">' + (m ? '30' : '00') + '</div>'; });
         hours.innerHTML = pad + hh + pad;
         minutes.innerHTML = pad + mm + pad;
+        var rowCss = 'height:' + TP_ROW + 'px;line-height:' + TP_ROW + 'px;';
+        [hours, minutes].forEach(function(c){ c.querySelectorAll('.tp-item').forEach(function(it){ it.style.cssText = rowCss; }); });
         document.getElementById('timePickerModal').style.display = 'flex';
         pushLayer(hideTimePicker);
         requestAnimationFrame(function() {
@@ -1117,12 +1144,12 @@
     }
     function tpPick(id) {
         var col = document.getElementById(id);
-        var el = col.querySelectorAll('.tp-item')[Math.round(col.scrollTop / TP_ROW) + 2];
+        var el = col.querySelectorAll('.tp-item')[Math.round(col.scrollTop / TP_ROW) + TP_PAD];
         return el && el.dataset.v != null ? parseInt(el.dataset.v, 10) : null;
     }
     function tpMark() {
         ['tpHours', 'tpMinutes'].forEach(function(id) {
-            var col = document.getElementById(id), idx = Math.round(col.scrollTop / TP_ROW) + 2;
+            var col = document.getElementById(id), idx = Math.round(col.scrollTop / TP_ROW) + TP_PAD;
             col.querySelectorAll('.tp-item').forEach(function(el, i) { el.classList.toggle('selected', i === idx); });
         });
     }
@@ -1135,6 +1162,7 @@
                 _tpTarget.dataset.val = val;
                 _tpTarget.textContent = val;
                 _tpTarget.classList.remove('empty');
+                clearFieldErr(_tpTarget);
                 if (_tpTarget.id === 'makeup-tbtn') document.getElementById('makeup-time').value = val;
                 if (_tpTarget.id.indexOf('ot-') === 0 && typeof syncOtNextDay === 'function') syncOtNextDay();
             }
@@ -1147,7 +1175,33 @@
         });
     }
     // 表單頁也是一層歷史：返回鍵回主畫面，不是關掉 LIFF
-    function openForm(id) { showView(id); pushLayer(function(){ showView('main-view'); }); }
+    function openForm(id) { clearAllFlags(); showView(id); pushLayer(function(){ showView('main-view'); }); }
+
+    // ===== 沒填的欄位反紅（建全 msg38219）=====
+    // pairs: [[顯示名, 元素 id], ...]；第一個捲到畫面中間。改了那一欄（輸入／選擇）就只清那一欄。
+    function flagMissing(pairs, statusDiv) {
+        clearAllFlags();
+        pairs.forEach(function(pr) {
+            var el = document.getElementById(pr[1]); if (!el) return;
+            el.classList.add('field-err');
+            var f = el.closest('.field'); if (f) f.classList.add('field-has-err');
+        });
+        var first = document.getElementById(pairs[0][1]);
+        if (first) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        if (statusDiv) statusDiv.innerText = '尚未填完：' + pairs.map(function(pr){ return pr[0]; }).join('、');
+    }
+    function clearFieldErr(el) {
+        var f = el && el.closest ? el.closest('.field') : null;
+        if (!f || !f.classList.contains('field-has-err')) return;
+        f.classList.remove('field-has-err');
+        f.querySelectorAll('.field-err').forEach(function(x){ x.classList.remove('field-err'); });
+    }
+    function clearAllFlags() {
+        document.querySelectorAll('.field-has-err').forEach(function(f){ f.classList.remove('field-has-err'); });
+        document.querySelectorAll('.field-err').forEach(function(x){ x.classList.remove('field-err'); });
+    }
+    document.addEventListener('input', function(e){ clearFieldErr(e.target); }, true);
+    document.addEventListener('change', function(e){ clearFieldErr(e.target); }, true);
     function backToMain() { if (navStack.length) popLayer(); else showView('main-view'); }
 
     function slashDate(iso) {          // '2026-11-12' → '2026/11/12'
@@ -1233,16 +1287,13 @@
         var statusDiv = document.getElementById('ot-status');
 
         var missing = [];
-        if (!dateVal) missing.push('日期');
-        if (!startVal) missing.push('加班開始');
-        if (!endVal) missing.push('加班結束');
-        if (!reasonVal) missing.push('原因');
-        if (missing.length) {
-            showAlert('資訊尚未填寫完成，請補上：\n・' + missing.join('\n・'));
-            statusDiv.innerText = '尚未填完：' + missing.join('、');
-            return;
-        }
+        if (!dateVal) missing.push(['日期', 'ot-date']);
+        if (!startVal) missing.push(['加班開始', 'ot-start-tbtn']);
+        if (!endVal) missing.push(['加班結束', 'ot-end-tbtn']);
+        if (!reasonVal) missing.push(['原因', 'ot-reason']);
+        if (missing.length) { flagMissing(missing, statusDiv); return; }
         if (!overnight && endVal <= startVal) {
+            flagMissing([['加班結束', 'ot-end-tbtn']]);
             showAlert('加班結束要晚於加班開始。\n如果加班到隔天，請勾選「跨日」。');
             statusDiv.innerText = '加班結束要晚於加班開始（跨夜請勾跨日）';
             return;
@@ -1296,11 +1347,7 @@
     function submitMeal() {
         var dateVal = document.getElementById('meal-date').value;
         var statusDiv = document.getElementById('meal-status');
-        if (!dateVal) {
-            showAlert('資訊尚未填寫完成，請補上：\n・日期');
-            statusDiv.innerText = '尚未填完：日期';
-            return;
-        }
+        if (!dateVal) { flagMissing([['日期', 'meal-date']], statusDiv); return; }
         if (!canSend(statusDiv, '誤餐申請')) return;
         var dateObj = new Date(dateVal + 'T12:00:00+08:00');
         showConfirm({
