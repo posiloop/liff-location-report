@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
     <title>AI 定位回報助手</title>
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"
             onerror="document.addEventListener('DOMContentLoaded', function(){ var s=document.getElementById('status'); if(s) s.innerText='❌ LIFF SDK 載入失敗（CDN/網路問題，重新整理試試）'; })"></script>
@@ -256,6 +258,11 @@
             })
             .catch(function(e){ GEO.reason='設定連線失敗'; GEO.loaded=true; return GEO; });
     }
+
+    // 不做範圍檢核的人（LINE userId，不用顯示名）。建全 2026-11-11 msg38172。
+    var RANGE_EXEMPT = {
+        'Uaa14b6d4fc1eae259e936af371c96ddd': '盧建全'
+    };
 
     // 回傳 {block:bool, text:string}
     // 🔴 建全 2026-09-07 msg 22886 裁示：**照擋**。設定拿不到就不讓打卡、顯示網路異常請重試，
@@ -533,7 +540,10 @@
                     // 🔴 範圍硬擋（建全 2026-09-07 令）：超出範圍就不送出，不是事後標紅字
                     return loadGeoConfig(profile.userId||'').then(function(){ return profile; });
                 }).then(function(profile) {
-                    var rng = checkRange(lat, lng, position.coords.accuracy);
+                    // 免範圍檢核名單（建全 2026-11-11 msg38172「把建全的範圍審核拿掉」）：不擋、照常送卡片寫 Sheet
+                    var rng = RANGE_EXEMPT[profile.userId || '']
+                        ? { block:false, text:'免範圍檢核' }
+                        : checkRange(lat, lng, position.coords.accuracy);
                     if (rng.block) {
                         // 🔴 建全 2026-09-07 msg 22893 裁示「只講不在允許範圍，不揭露距離」——
                         //    alert 那行當時改了，**這行狀態列沒跟上**，一直在印「超出範圍 X.XX km（站 允許 Y km）」。
